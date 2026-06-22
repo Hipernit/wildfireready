@@ -1,12 +1,35 @@
 import { T } from '../i18n';
 
+export const SHELTER_DISCLAIMER =
+  'Shelter locations based on past activations. ' +
+  'Confirm active shelters via WA-Alert or dial 2-1-1 on the day of evacuation.';
+
 // ── EMERGENCY CONTACTS ────────────────────────────────────────────────────
-export const CONTACTS = [
-  {name:{en:'King County Emergency Mgmt',es:'Manejo de Emergencias del Condado King'},detail:'(206) 296-3830'},
-  {name:{en:'WA DNR Wildfire Hotline',es:'Línea de incendios WA DNR'},detail:'1-800-562-6010'},
-  {name:{en:"Rep. Schrier's District Office",es:'Oficina de la Rep. Schrier'},detail:'(425) 657-1001'},
-  {name:{en:'Chelan County Sheriff',es:'Sheriff del Condado de Chelan'},detail:'(509) 667-6500'},
-];
+const C_KING     = { name:{ en:'King County Emergency Mgmt',     es:'Manejo de Emergencias del Condado King' },     detail:'(206) 296-3830' };
+const C_KITTITAS = { name:{ en:'Kittitas County Emergency Mgmt', es:'Manejo de Emergencias del Condado Kittitas' }, detail:'(509) 962-7525' };
+const C_CHELAN   = { name:{ en:'Chelan County Sheriff',          es:'Sheriff del Condado de Chelan' },              detail:'(509) 667-6500' };
+const C_211      = { name:{ en:'2-1-1 WA — Disaster Helpline',   es:'2-1-1 WA — Línea de Ayuda en Desastres' },    detail:'2-1-1' };
+
+// Fallback list (all counties) used when no location key is matched.
+export const CONTACTS = [C_KING, C_KITTITAS, C_CHELAN, C_211];
+
+const CONTACTS_BY_LOCATION = {
+  'kirkland':     [C_KING,     C_211],
+  'sammamish':    [C_KING,     C_211],
+  'issaquah':     [C_KING,     C_211],
+  'maple-valley': [C_KING,     C_211],
+  'wenatchee':    [C_CHELAN,   C_211],
+  'leavenworth':  [C_CHELAN,   C_211],
+  'ellensburg':   [C_KITTITAS, C_211],
+  'cle-elum':     [C_KITTITAS, C_211],
+};
+
+// Returns contacts for a location with name resolved to the active language,
+// mirroring how getRoutes works. Falls back to the full CONTACTS list.
+export function getContacts(locationKey, lang) {
+  const list = CONTACTS_BY_LOCATION[locationKey] ?? CONTACTS;
+  return list.map((c) => ({ ...c, name: c.name[lang] }));
+}
 
 // ── EVACUATION ROUTES ─────────────────────────────────────────────────────
 // Sources: King County EM, City of Sammamish EM, City of Issaquah 2025

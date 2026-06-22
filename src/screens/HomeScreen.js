@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { s } from '../styles';
 import { useTheme, useIsDark, ACCENT } from '../theme';
 import { useLang, useLangCode } from '../i18n';
-import { findLocation } from '../data/locations';
+import { findLocation, LOCATIONS } from '../data/locations';
 import { fetchAQI, aqiCache } from '../services/aqi';
 import { fetchLiveFires, fireCache } from '../services/fires';
 import LocPicker from '../components/LocPicker';
@@ -61,6 +62,45 @@ export default function HomeScreen({ loc, setLoc }) {
     >
       <LocPicker value={loc} onChange={setLoc} />
 
+      {/* ── District map ──────────────────────────────────────────────────── */}
+      <MapView
+        style={{ height:200, marginHorizontal:16, marginTop:8, marginBottom:4, borderRadius:12, overflow:'hidden' }}
+        initialRegion={{ latitude:47.34, longitude:-121.26, latitudeDelta:1.2, longitudeDelta:3.0 }}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        pitchEnabled={false}
+        rotateEnabled={false}
+        userInterfaceStyle={isDark ? 'dark' : 'light'}
+      >
+        {LOCATIONS.map((l) => (
+          <Marker
+            key={l.key}
+            coordinate={{ latitude: l.lat, longitude: l.lon }}
+            title={l.label}
+            tracksViewChanges={false}
+          >
+            <View style={{
+              width: l.key === loc ? 14 : 10,
+              height: l.key === loc ? 14 : 10,
+              borderRadius: 7,
+              backgroundColor: l.key === loc ? ACCENT : '#1C6EA4',
+              borderWidth: 2,
+              borderColor: '#FFFFFF',
+            }} />
+          </Marker>
+        ))}
+        {fires?.fires?.filter((f) => f.lat && f.lon).map((f) => (
+          <Marker
+            key={f.id}
+            coordinate={{ latitude: f.lat, longitude: f.lon }}
+            title={f.name}
+            tracksViewChanges={false}
+          >
+            <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#C0392B', borderWidth:2, borderColor:'#FFFFFF' }} />
+          </Marker>
+        ))}
+      </MapView>
+
       {banner && (
         <View style={[s.banner, { backgroundColor: banner.bg, borderColor: banner.border }]}>
           <Text style={{ fontSize:16, fontWeight:'800', color: banner.tc, lineHeight:22 }}>{banner.icon}</Text>
@@ -93,7 +133,9 @@ export default function HomeScreen({ loc, setLoc }) {
         <LoadingCard label={t.fetchingFires} height={80} />
       ) : fires?.fires?.length === 0 ? (
         <View style={[s.aqiCard, { backgroundColor: theme.surface, borderColor: theme.border, padding:16 }]}>
-          <Text style={{ fontSize:14, color: theme.textMid, lineHeight:20 }}>{t.noFires}</Text>
+          <Text style={{ fontSize:14, color: theme.textMid, lineHeight:20 }}>
+            {fires.isLive ? t.noFires : t.firesFetchError}
+          </Text>
           <LiveStatus isLive={fires.isLive} updatedAt={fires.updatedAt} liveLabel={t.live} offlineLabel={t.offlineData} />
         </View>
       ) : (
@@ -112,27 +154,27 @@ export default function HomeScreen({ loc, setLoc }) {
               <View style={[s.fireStats, { borderTopColor: theme.borderLight }]}>
                 <View style={{ flex:1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{f.acres}</Text>
-                  <Text style={s.fstatKey}>{t.acres}</Text>
+                  <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.acres}</Text>
                 </View>
                 <View style={{ flex:1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{f.containment}</Text>
-                  <Text style={s.fstatKey}>{t.contained}</Text>
+                  <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.contained}</Text>
                 </View>
                 <View style={{ flex:1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{f.location.split(' ')[0]}</Text>
-                  <Text style={s.fstatKey}>{t.county}</Text>
+                  <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.county}</Text>
                 </View>
               </View>
               <View style={[s.fireFooter, { borderTopColor: theme.borderLight }]}>
-                <Text style={s.fireFooterTxt}>{t.cause}: {f.cause}</Text>
-                <Text style={s.fireFooterMeta}>{t.updated} {f.updated}</Text>
+                <Text style={[s.fireFooterTxt, { color: theme.textLight }]}>{t.cause}: {f.cause}</Text>
+                <Text style={[s.fireFooterMeta, { color: theme.textLight }]}>{t.updated} {f.updated}</Text>
               </View>
             </View>
           );
         })
       )}
       {fires && (
-        <View style={s.credit}><Text style={s.creditTxt}>{t.nifcCredit}</Text></View>
+        <View style={s.credit}><Text style={[s.creditTxt, { color: theme.textLight }]}>{t.nifcCredit}</Text></View>
       )}
 
       <View style={[s.ctaCard, { backgroundColor: theme.darkCard }]}>

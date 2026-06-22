@@ -7,7 +7,7 @@ const NIFC_URL =
   'where=POOState%3D%27US-WA%27&' +
   'outFields=IncidentName,GISAcres,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory&' +
   'orderByFields=GISAcres+DESC&resultRecordCount=5&' +
-  'f=json&returnGeometry=false';
+  'f=json&returnGeometry=true&outSR=4326';
 
 // Shared cache; exported so screens can force-refresh by resetting `ts`.
 export const fireCache = { data: null, ts: 0 };
@@ -46,6 +46,8 @@ export async function fetchLiveFires() {
         status,
         updated,
         cause: a.FireCause || 'Under investigation',
+        lat: f.geometry?.y ?? null,
+        lon: f.geometry?.x ?? null,
       };
     });
 

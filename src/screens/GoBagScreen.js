@@ -50,7 +50,7 @@ export default function GoBagScreen({ checkedIds, setCheckedIds }) {
           <View key={sec} style={[s.checkSec, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[s.checkSecHead, { backgroundColor: theme.surfaceAlt, borderBottomColor: theme.border }]}>
               <Text style={[s.checkSecTitle, { color: theme.text }]}>{sec}</Text>
-              <Text style={s.checkSecProg}>
+              <Text style={[s.checkSecProg, { color: theme.textLight }]}>
                 <Text style={{ color: ACCENT, fontWeight:'700' }}>{done}</Text>/{items.length}
               </Text>
             </View>

@@ -48,6 +48,7 @@ export const T = {
     fixItems:{ gobag:'Complete your go-bag checklist', meds:'Add prescription medication details', pets:'Add pet information to profile', location:'Select your WA-08 community' },
     scoreGrades:{ A:'Outstanding — your household is well prepared.', B:'Good — a few gaps to close before fire season.', C:'Fair — complete your go-bag to raise your score.', D:'Needs work — start with the go-bag checklist.', F:'Just getting started — open Go Bag to begin.' },
     galUnit:'gal',
+    shelterDisclaimer:'Shelter locations are based on past activations. Confirm active shelters via WA-Alert or dial 2-1-1 on the day of evacuation.',
     evacLevelTitle:'Evacuation levels',
     levelTags:['GET READY', 'GET SET', 'GO NOW'],
     levelActions:[
@@ -58,6 +59,8 @@ export const T = {
     evacRoutes:'Evacuation routes', emergencyContacts:'Emergency contacts',
     sharePlan:'Share plan with family', shareMsg:'My WildfireReady evacuation plan for',
     shareFooter:'\n\nStay safe. Download WildfireReady for WA-08.', call:'Call',
+    firesFetchError:'Unable to reach fire data. Check your connection and pull to refresh.',
+    genericRoutesNote:'Specific evacuation routes are not yet mapped for this location. Follow official emergency alerts for routing guidance.',
   },
   es: {
     tabs:{ home:'Ahora', weather:'Clima', gobag:'Mochila', score:'Puntaje', plan:'Plan' },
@@ -105,6 +108,7 @@ export const T = {
     fixItems:{ gobag:'Complete la lista de verificación de la mochila', meds:'Agregue medicamentos recetados al perfil', pets:'Agregue información de mascotas', location:'Seleccione su comunidad de WA-08' },
     scoreGrades:{ A:'Excelente — su hogar está bien preparado.', B:'Bien — algunos puntos a mejorar.', C:'Regular — complete la mochila para subir su puntaje.', D:'Necesita trabajo — comience con la mochila.', F:'Recién comenzando — abra Mochila para empezar.' },
     galUnit:'gal',
+    shelterDisclaimer:'Las ubicaciones de refugios se basan en activaciones anteriores. Confirme los refugios activos a través de WA-Alert o marque 2-1-1 el día de la evacuación.',
     evacLevelTitle:'Niveles de evacuación',
     levelTags:['PREPÁRESE', 'ALÍSTESE', 'SALGA YA'],
     levelActions:[
@@ -115,6 +119,8 @@ export const T = {
     evacRoutes:'Rutas de evacuación', emergencyContacts:'Contactos de emergencia',
     sharePlan:'Compartir plan con familia', shareMsg:'Mi plan de evacuación WildfireReady para',
     shareFooter:'\n\nManténgase seguro. Descargue WildfireReady para WA-08.', call:'Llamar',
+    firesFetchError:'No se pudo obtener datos de incendios. Verifique su conexión y deslice para actualizar.',
+    genericRoutesNote:'Las rutas específicas no están disponibles aún para esta ubicación. Siga las alertas de emergencia oficiales para orientación.',
   },
 };
 

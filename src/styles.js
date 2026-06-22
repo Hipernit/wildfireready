@@ -110,4 +110,6 @@ export const s = StyleSheet.create({
   contactDetail:{fontSize:12},
   callBtn:{borderRadius:8,paddingHorizontal:14,paddingVertical:8},
   callBtnTxt:{color:'#fff',fontWeight:'600',fontSize:13},
+  disclaimerRow:{marginHorizontal:16,marginTop:10,borderRadius:10,borderWidth:1,padding:12},
+  disclaimerTxt:{fontSize:12,lineHeight:17},
 });

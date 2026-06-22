@@ -64,7 +64,7 @@ export async function fetchFireWeather(locationKey) {
 
     const periods = fcData.properties.periods
       .filter((p) => p.isDaytime)
-      .slice(0, 3)
+      .slice(0, 5)
       .map((p) => ({
         name: p.name,
         temp: p.temperature,

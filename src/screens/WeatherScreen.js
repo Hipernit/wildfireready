@@ -5,7 +5,13 @@ import { useTheme, useIsDark, ACCENT } from '../theme';
 import { useLang, useLangCode, translateDayName, translateForecast } from '../i18n';
 import { fetchFireWeather, wxCache } from '../services/weather';
 import LocPicker from '../components/LocPicker';
-import { LoadingCard } from '../components/StatusLine';
+import { LoadingCard, LiveStatus } from '../components/StatusLine';
+
+const DANGER_DARK_BG = {
+  Extreme: 'rgba(123,0,0,0.25)',   High:    'rgba(192,57,43,0.2)',
+  Moderate:'rgba(192,122,0,0.2)',  Low:     'rgba(46,125,94,0.2)',
+  Minimal: 'rgba(28,110,164,0.2)',
+};
 
 export default function WeatherScreen({ loc, setLoc }) {
   const theme = useTheme();
@@ -61,7 +67,7 @@ export default function WeatherScreen({ loc, setLoc }) {
                   <Text style={[s.wxDay, { color: theme.text }]}>{translateDayName(p.name, lang)}</Text>
                   <Text style={[s.wxFcast, { color: theme.textLight }]}>{translateForecast(p.forecast, lang)}</Text>
                 </View>
-                <View style={[s.dangerBadge, { backgroundColor: p.fireDanger.bg }]}>
+                <View style={[s.dangerBadge, { backgroundColor: isDark ? (DANGER_DARK_BG[p.fireDanger.level] ?? DANGER_DARK_BG.Moderate) : p.fireDanger.bg }]}>
                   <Text style={[s.dangerDot, { color: p.fireDanger.color }]}>{p.fireDanger.dot}</Text>
                   <Text style={[s.dangerTxt, { color: p.fireDanger.color }]}>{t.dangerLevels[p.fireDanger.level] || p.fireDanger.level}</Text>
                 </View>
@@ -69,15 +75,15 @@ export default function WeatherScreen({ loc, setLoc }) {
               <View style={[s.wxStats, { borderTopColor: theme.borderLight }]}>
                 <View style={s.wxStat}>
                   <Text style={[s.wxStatVal, { color: theme.text }]}>{p.temp}°F</Text>
-                  <Text style={s.wxStatKey}>{t.temp}</Text>
+                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.temp}</Text>
                 </View>
                 <View style={s.wxStat}>
                   <Text style={[s.wxStatVal, { color: theme.text }]}>{p.wind}</Text>
-                  <Text style={s.wxStatKey}>{t.wind}</Text>
+                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.wind}</Text>
                 </View>
                 <View style={[s.wxStat, { flex:2 }]}>
                   <Text style={[s.wxStatVal, { color: theme.text }]} numberOfLines={1}>{translateForecast(p.forecast, lang)}</Text>
-                  <Text style={s.wxStatKey}>{t.conditions}</Text>
+                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.conditions}</Text>
                 </View>
               </View>
               {p.redFlag && (
@@ -88,8 +94,9 @@ export default function WeatherScreen({ loc, setLoc }) {
             </View>
           ))}
           <View style={[s.wxCredit, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={s.wxCreditTxt}>{t.nwsCredit} · {wx.updatedAt}</Text>
-            <Text style={[s.wxCreditTxt, { marginTop:4 }]}>{t.weatherNote}</Text>
+            <Text style={[s.wxCreditTxt, { color: theme.textLight }]}>{t.nwsCredit}</Text>
+            <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textLight }]}>{t.weatherNote}</Text>
+            <LiveStatus isLive={wx.isLive} updatedAt={wx.updatedAt} liveLabel={t.live} offlineLabel={t.offlineData} />
           </View>
         </>
       ) : null}

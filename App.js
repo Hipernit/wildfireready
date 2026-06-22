@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, SafeAreaView, useColorScheme } from 'react-native';
+import { useState } from 'react';
+import { View, useColorScheme } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { s } from './src/styles';
 import { THEMES, ThemeCtx } from './src/theme';
 import { LangCtx } from './src/i18n';
@@ -18,7 +19,7 @@ export default function App() {
   const [lang, setLang] = useState('en');
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
   // Location is shared so picking a community on Now/Weather stays in sync.
-  const [loc, setLoc] = useState('kirkland');
+  const [loc, setLoc] = useState('sammamish');
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [profile] = useState({ adults:2, children:0, pets:1, meds:true, mobility:false, elderly:false });
 
@@ -33,17 +34,19 @@ export default function App() {
   };
 
   return (
-    <ThemeCtx.Provider value={isDark ? 'dark' : 'light'}>
-      <LangCtx.Provider value={lang}>
-        <SafeAreaView style={[s.safe, { backgroundColor: theme.header }]}>
-          <Header
-            onToggleLang={() => setLang((l) => (l === 'en' ? 'es' : 'en'))}
-            onToggleDark={() => setIsDark((d) => !d)}
-          />
-          <View style={{ flex:1, backgroundColor: theme.bg }}>{screens[tab]}</View>
-          <TabBar active={tab} onSelect={setTab} />
-        </SafeAreaView>
-      </LangCtx.Provider>
-    </ThemeCtx.Provider>
+    <SafeAreaProvider>
+      <ThemeCtx.Provider value={isDark ? 'dark' : 'light'}>
+        <LangCtx.Provider value={lang}>
+          <SafeAreaView style={[s.safe, { backgroundColor: theme.header }]}>
+            <Header
+              onToggleLang={() => setLang((l) => (l === 'en' ? 'es' : 'en'))}
+              onToggleDark={() => setIsDark((d) => !d)}
+            />
+            <View style={{ flex:1, backgroundColor: theme.bg }}>{screens[tab]}</View>
+            <TabBar active={tab} onSelect={setTab} />
+          </SafeAreaView>
+        </LangCtx.Provider>
+      </ThemeCtx.Provider>
+    </SafeAreaProvider>
   );
 }

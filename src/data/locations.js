@@ -1,6 +1,6 @@
 // ── LOCATIONS ─────────────────────────────────────────────────────────────
 export const LOCATIONS = [
-  { key:'kirkland',     label:'Kirkland',     county:'King',     zip:'98033', lat:47.6769, lon:-122.2060 },
+  { key:'kirkland',     label:'Kirkland (WA-01/08 border)', county:'King', zip:'98033', lat:47.6769, lon:-122.2060, note:'Kirkland (98033) sits near the WA-08/WA-01 boundary and may fall in WA-01. Evacuation routes shown are directionally correct regardless of district.' },
   { key:'sammamish',    label:'Sammamish',    county:'King',     zip:'98075', lat:47.6163, lon:-122.0356 },
   { key:'issaquah',     label:'Issaquah',     county:'King',     zip:'98027', lat:47.5301, lon:-122.0326 },
   { key:'maple-valley', label:'Maple Valley', county:'King',     zip:'98038', lat:47.3748, lon:-122.0465 },

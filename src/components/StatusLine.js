@@ -17,10 +17,11 @@ export function LoadingCard({ label, height = 100 }) {
 
 // Small "● Live · 3:42 PM · Preliminary data" / "Offline data" row.
 export function LiveStatus({ isLive, updatedAt, liveLabel, offlineLabel, extra }) {
+  const theme = useTheme();
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginTop:6 }}>
-      <View style={[s.liveDot, { backgroundColor: isLive ? '#2E7D5E' : '#9B948E' }]} />
-      <Text style={s.aqiUpdate}>
+      <View style={[s.liveDot, { backgroundColor: isLive ? '#2E7D5E' : theme.textLight }]} />
+      <Text style={[s.aqiUpdate, { color: theme.textLight }]}>
         {isLive ? `${liveLabel} · ${updatedAt}${extra ? ` · ${extra}` : ''}` : offlineLabel}
       </Text>
     </View>
