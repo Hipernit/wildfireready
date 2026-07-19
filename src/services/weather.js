@@ -38,10 +38,14 @@ function demoForecast(locationKey) {
     {name:'Today',temp:89,wind:'18 mph',windDir:'SW',forecast:'Sunny and hot',fireDanger:{level:'High',color:'#C0392B',bg:'#FDECEA',dot:'●'},redFlag:true},
     {name:'Tomorrow',temp:94,wind:'22 mph',windDir:'SW',forecast:'Sunny and very hot',fireDanger:{level:'Extreme',color:'#7B0000',bg:'#FEF2F2',dot:'●'},redFlag:true},
     {name:'Wednesday',temp:81,wind:'12 mph',windDir:'W',forecast:'Partly cloudy',fireDanger:{level:'Moderate',color:'#C07A00',bg:'#FFF8E6',dot:'●'},redFlag:false},
+    {name:'Thursday',temp:87,wind:'16 mph',windDir:'SW',forecast:'Sunny and hot',fireDanger:{level:'High',color:'#C0392B',bg:'#FDECEA',dot:'●'},redFlag:true},
+    {name:'Friday',temp:83,wind:'10 mph',windDir:'W',forecast:'Partly cloudy',fireDanger:{level:'Moderate',color:'#C07A00',bg:'#FFF8E6',dot:'●'},redFlag:false},
   ] : [
     {name:'Today',temp:72,wind:'8 mph',windDir:'W',forecast:'Mostly sunny',fireDanger:{level:'Low',color:'#2E7D5E',bg:'#E8F5EE',dot:'●'},redFlag:false},
     {name:'Tomorrow',temp:78,wind:'11 mph',windDir:'SW',forecast:'Sunny',fireDanger:{level:'Moderate',color:'#C07A00',bg:'#FFF8E6',dot:'●'},redFlag:false},
     {name:'Wednesday',temp:82,wind:'15 mph',windDir:'S',forecast:'Sunny and warm',fireDanger:{level:'Moderate',color:'#C07A00',bg:'#FFF8E6',dot:'●'},redFlag:false},
+    {name:'Thursday',temp:76,wind:'10 mph',windDir:'SW',forecast:'Sunny',fireDanger:{level:'Moderate',color:'#C07A00',bg:'#FFF8E6',dot:'●'},redFlag:false},
+    {name:'Friday',temp:71,wind:'7 mph',windDir:'W',forecast:'Partly cloudy',fireDanger:{level:'Low',color:'#2E7D5E',bg:'#E8F5EE',dot:'●'},redFlag:false},
   ];
   return { isLive: false, updatedAt: 'Demo data', periods };
 }
