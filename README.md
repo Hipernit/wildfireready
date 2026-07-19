@@ -45,6 +45,7 @@ All evacuation routes in the Plan tab were derived from official county emergenc
 - **React Native 0.85.3** with **React 19.2.3**
 - **Expo SDK 56** (`~56.0.12`) — managed workflow
 - **react-native-safe-area-context** for notch/home-bar handling across iOS and Android
+- **react-native-maps** for the live community/fire map view on the Home tab
 - React Context API for theme (light/dark) and language (EN/ES) state
 - No third-party state management or navigation libraries — five-tab layout is a hand-rolled context-driven switcher optimized for single-screen simplicity
 
