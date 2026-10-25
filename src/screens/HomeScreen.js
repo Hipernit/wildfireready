@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { s } from '../styles';
 import { useTheme, useIsDark, ACCENT } from '../theme';
 import { useLang, useLangCode } from '../i18n';
@@ -9,6 +8,12 @@ import { fetchAQI, aqiCache } from '../services/aqi';
 import { fetchLiveFires, fireCache } from '../services/fires';
 import LocPicker from '../components/LocPicker';
 import { LoadingCard, LiveStatus } from '../components/StatusLine';
+
+// Guarded require so the screen still renders if the native module is absent
+let WebView = null;
+try {
+  WebView = require('react-native-webview').WebView;
+} catch (_) {}
 
 // Air-quality banner palette, theme-aware. In dark mode we tint the surface
 // with the semantic color instead of using light pastel backgrounds.
@@ -54,6 +59,49 @@ export default function HomeScreen({ loc, setLoc }) {
   const location = findLocation(loc);
   const banner = aqi ? bannerStyle(aqi.cat, t, theme, isDark) : null;
 
+  const mapHtml = useMemo(() => {
+    const tileUrl = isDark
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const attr = isDark
+      ? '&copy; OpenStreetMap contributors &copy; CARTO'
+      : '&copy; OpenStreetMap contributors';
+    const locsJson = JSON.stringify(
+      LOCATIONS.map((l) => ({ lat: l.lat, lon: l.lon, label: l.label }))
+    );
+    const firesJson = JSON.stringify(
+      (fires?.fires ?? [])
+        .filter((f) => f.lat && f.lon)
+        .map((f) => ({ lat: f.lat, lon: f.lon, name: f.name, acres: f.acres }))
+    );
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>html,body{margin:0;padding:0;height:100%;width:100%}#map{height:100%;width:100%}.leaflet-control-attribution{font-size:9px}</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  var map=L.map('map',{zoomControl:false}).setView([47.3,-121.5],7);
+  L.tileLayer(${JSON.stringify(tileUrl)},{attribution:${JSON.stringify(attr)},maxZoom:19}).addTo(map);
+  var locs=${locsJson};
+  locs.forEach(function(l){
+    L.circleMarker([l.lat,l.lon],{radius:6,fillColor:'#1C6EA4',color:'#fff',weight:2,opacity:1,fillOpacity:1}).addTo(map).bindPopup(l.label);
+  });
+  var fires=${firesJson};
+  fires.forEach(function(f){
+    L.circleMarker([f.lat,f.lon],{radius:6,fillColor:'#C0392B',color:'#fff',weight:2,opacity:1,fillOpacity:1}).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+f.acres+' acres');
+  });
+})();
+</script>
+</body>
+</html>`;
+  }, [isDark, fires]);
+
   return (
     <ScrollView
       style={{ flex:1, backgroundColor: theme.bg }}
@@ -62,44 +110,21 @@ export default function HomeScreen({ loc, setLoc }) {
     >
       <LocPicker value={loc} onChange={setLoc} />
 
-      {/* ── District map ──────────────────────────────────────────────────── */}
-      <MapView
-        style={{ height:200, marginHorizontal:16, marginTop:8, marginBottom:4, borderRadius:12, overflow:'hidden' }}
-        initialRegion={{ latitude:47.34, longitude:-121.26, latitudeDelta:1.2, longitudeDelta:3.0 }}
-        scrollEnabled={false}
-        zoomEnabled={false}
-        pitchEnabled={false}
-        rotateEnabled={false}
-        userInterfaceStyle={isDark ? 'dark' : 'light'}
-      >
-        {LOCATIONS.map((l) => (
-          <Marker
-            key={l.key}
-            coordinate={{ latitude: l.lat, longitude: l.lon }}
-            title={l.label}
-            tracksViewChanges={false}
-          >
-            <View style={{
-              width: l.key === loc ? 14 : 10,
-              height: l.key === loc ? 14 : 10,
-              borderRadius: 7,
-              backgroundColor: l.key === loc ? ACCENT : '#1C6EA4',
-              borderWidth: 2,
-              borderColor: '#FFFFFF',
-            }} />
-          </Marker>
-        ))}
-        {fires?.fires?.filter((f) => f.lat && f.lon).map((f) => (
-          <Marker
-            key={f.id}
-            coordinate={{ latitude: f.lat, longitude: f.lon }}
-            title={f.name}
-            tracksViewChanges={false}
-          >
-            <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#C0392B', borderWidth:2, borderColor:'#FFFFFF' }} />
-          </Marker>
-        ))}
-      </MapView>
+      {/* ── Community & fire map ───────────────────────────────────────────── */}
+      {WebView != null && (
+        <View style={{ height: 220, marginHorizontal: 16, borderRadius: 12, marginTop: 12, overflow: 'hidden' }}>
+          <WebView
+            source={{ html: mapHtml }}
+            style={{ flex: 1 }}
+            originWhitelist={['*']}
+            javaScriptEnabled={true}
+            scrollEnabled={false}
+          />
+        </View>
+      )}
+      <View style={[s.credit, { marginTop: 4, marginBottom: 4 }]}>
+        <Text style={[s.creditTxt, { color: theme.textLight }]}>Community locations · Live fire data: NIFC/WFIGS · Map: OpenStreetMap</Text>
+      </View>
 
       {banner && (
         <View style={[s.banner, { backgroundColor: banner.bg, borderColor: banner.border }]}>

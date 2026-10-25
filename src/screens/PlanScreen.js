@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
 import { s } from '../styles';
 import { useTheme, useIsDark, ACCENT } from '../theme';
@@ -17,6 +17,35 @@ export default function PlanScreen({ loc, setLoc }) {
   const contacts = getContacts(loc, lang);
   const location = findLocation(loc);
   const hasOfficialRoutes = !!EVAC_ROUTES[loc];
+
+  const [liveRoutes, setLiveRoutes] = useState(null); // null = loading, [] = empty, [...] = features
+  const [liveError, setLiveError] = useState(false);
+  const [lastChecked, setLastChecked] = useState(null);
+
+  useEffect(() => {
+    const url =
+      'https://services.arcgis.com/hn7l5M5rFpMhKGf0/arcgis/rest/services/EvacuationRoutes_public/FeatureServer/0/query?where=1%3D1&outFields=*&f=json';
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        setLiveRoutes(Array.isArray(data.features) ? data.features : []);
+        setLastChecked(new Date());
+      })
+      .catch(() => {
+        setLiveError(true);
+        setLastChecked(new Date());
+      });
+  }, []);
+
+  const fmtTime = (d) =>
+    d
+      ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : '';
+
+  const getAttr = (attrs, ...keys) => {
+    for (const k of keys) if (attrs[k]) return String(attrs[k]);
+    return null;
+  };
 
   const sharePlan = async () => {
     const routeText = routes.map((r) => `${r.num}. ${r.name} (${r.time})\n${r.desc}`).join('\n\n');
@@ -88,6 +117,107 @@ export default function PlanScreen({ loc, setLoc }) {
           </View>
         ))}
       </View>
+
+      {/* ── Live evacuation routes (King County OEM) ────────────────────── */}
+      <Text style={[s.secLabel, { color: theme.textLight }]}>Live Evacuation Routes</Text>
+
+      {/* Loading */}
+      {liveRoutes === null && !liveError && (
+        <View style={[s.routeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={{ fontSize: 13, color: theme.textLight }}>Checking King County OEM…</Text>
+        </View>
+      )}
+
+      {/* Fetch error / offline */}
+      {liveError && (
+        <View style={[s.routeCard, { backgroundColor: theme.surface, borderColor: isDark ? 'rgba(155,148,142,0.25)' : '#DDD9D4' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#9B948E' }} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }}>Live routes unavailable</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: theme.textMid, lineHeight: 17 }}>
+            Could not reach King County OEM. Check your connection — hardcoded routes below are still valid.
+          </Text>
+          {lastChecked && (
+            <Text style={{ fontSize: 11, color: theme.textLight, marginTop: 6 }}>
+              Last attempted: {fmtTime(lastChecked)}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* No active evacuations */}
+      {liveRoutes !== null && liveRoutes.length === 0 && !liveError && (
+        <View style={[
+          s.routeCard,
+          {
+            backgroundColor: theme.surface,
+            borderColor: isDark ? 'rgba(46,125,94,0.4)' : '#A8D5BB',
+            borderWidth: 1.5,
+          },
+        ]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#2E7D5E' }} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text, flex: 1 }}>
+              No active evacuation orders in King County
+            </Text>
+          </View>
+          <Text style={{ fontSize: 12, color: theme.textMid, lineHeight: 17, marginBottom: 8 }}>
+            This section updates automatically when King County OEM issues evacuation routes.
+          </Text>
+          {lastChecked && (
+            <Text style={{ fontSize: 11, color: theme.textLight }}>
+              Last checked: {fmtTime(lastChecked)}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Active live route cards */}
+      {liveRoutes !== null && liveRoutes.length > 0 && liveRoutes.map((f, i) => {
+        const a = f.attributes ?? {};
+        const name = getAttr(a, 'ZONE_NAME', 'NAME', 'EVAC_ZONE_NAME', 'EVAC_ZONE', 'Route_Name') ?? `Route ${i + 1}`;
+        const level = getAttr(a, 'EVAC_LEVEL', 'LEVEL', 'Level', 'LEVEL_NAME');
+        const status = getAttr(a, 'STATUS', 'Status', 'EVAC_STATUS');
+        const desc = getAttr(a, 'DESCRIPTION', 'Description', 'DIRECTIONS', 'Directions');
+        const levelColor = level === '3' || level?.includes('3')
+          ? (isDark ? '#FF6B5E' : '#C0392B')
+          : level === '2' || level?.includes('2')
+          ? (isDark ? '#FF7A50' : '#E8450A')
+          : (isDark ? '#4FAE84' : '#2E7D5E');
+        return (
+          <View
+            key={a.OBJECTID ?? i}
+            style={[s.routeCard, { backgroundColor: theme.surface, borderColor: isDark ? 'rgba(232,69,10,0.45)' : '#F0A070', borderWidth: 1.5 }]}
+          >
+            <View style={s.routeHead}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#E8450A' }} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#FF7A50' : '#E8450A', letterSpacing: 0.5 }}>
+                  ACTIVE
+                </Text>
+              </View>
+              {level && (
+                <View style={[s.tag, { backgroundColor: isDark ? 'rgba(232,69,10,0.15)' : '#FEF0E7' }]}>
+                  <Text style={[s.tagTxt, { color: levelColor }]}>Level {level}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[s.routeName, { color: theme.text }]}>{name}</Text>
+            {status && <Text style={{ fontSize: 11, fontWeight: '600', color: isDark ? '#FF7A50' : '#E8450A', marginBottom: 4 }}>{status}</Text>}
+            {desc && <Text style={[s.routeDesc, { color: theme.textMid }]}>{desc}</Text>}
+          </View>
+        );
+      })}
+
+      {/* Data source credit */}
+      {!liveError && (
+        <View style={[s.credit, { marginTop: 0, marginBottom: 8 }]}>
+          <Text style={[s.creditTxt, { color: theme.textLight }]}>
+            Live routes: King County Office of Emergency Management · ArcGIS
+          </Text>
+        </View>
+      )}
 
       {/* ── Evacuation routes ───────────────────────────────────────────── */}
       <Text style={[s.secLabel, { color: theme.textLight }]}>{t.evacRoutes}</Text>

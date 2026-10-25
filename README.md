@@ -36,7 +36,7 @@ The emergency action hub. Shows Washington State's three-level evacuation system
 
 ### A note on evacuation routes
 
-All evacuation routes in the Plan tab were derived from official county emergency management plans and public-facing evacuation guidance, then cross-referenced against confirmed shelter activation histories from past fire events in the district (including the 2017 Jolly Mountain Fire and the 2025 Lambert Road Fire). Routes for communities with a single egress road — Icicle Canyon in Leavenworth and the SR-903 corridor in Roslyn/upper Cle Elum — carry a prominent "LEAVE EARLY" designation and are identified by county EM as the district's highest-priority evacuation risks. Shelter locations are labeled with a disclaimer to confirm activation status via WA-Alert or 2-1-1 on the day of any evacuation, as shelter assignments change event-to-event.
+All evacuation routes in the Plan tab were derived from official county emergency management plans and public-facing evacuation guidance, then cross-referenced against confirmed shelter activation histories from past fire events in the district. Route data for King County communities was reviewed by King County Office of Emergency Management, whose feedback directly shaped the app's approach to evacuation guidance and resulted in the removal of several inaccurate street-level directions. (including the 2017 Jolly Mountain Fire and the 2025 Lambert Road Fire). Routes for communities with a single egress road — Icicle Canyon in Leavenworth and the SR-903 corridor in Roslyn/upper Cle Elum — carry a prominent "LEAVE EARLY" designation and are identified by county EM as the district's highest-priority evacuation risks. Shelter locations are labeled with a disclaimer to confirm activation status via WA-Alert or 2-1-1 on the day of any evacuation, as shelter assignments change event-to-event.
 
 ---
 
@@ -52,8 +52,12 @@ All evacuation routes in the Plan tab were derived from official county emergenc
 - EPA AirNow — `https://www.airnowapi.org/aq/observation/zipCode/current/`
 - NOAA NWS — `https://api.weather.gov/points/{lat},{lon}` → forecast grid
 - NIFC WFIGS — `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/Current_WildlandFire_Locations/FeatureServer/0/query`
+- King County OEM ArcGIS — `https://services.arcgis.com/hn7l5M5rFpMhKGf0/arcgis/rest/services/EvacuationRoutes_public/FeatureServer/0/query` — live evacuation routes drawn by King County OEM during active incidents
 
-All three APIs have offline fallback data so the app remains functional without a connection.
+All four APIs have offline fallback data so the app remains functional without a connection.
+
+### Map
+The embedded map is rendered via **react-native-webview** with a **Leaflet.js** map (v1.9.4) loaded from the unpkg CDN. Light mode uses OpenStreetMap tiles (`tile.openstreetmap.org`); dark mode uses CARTO dark tiles (`basemaps.cartocdn.com/dark_all`). No API key or billing account is required for either tile provider.
 
 ---
 
