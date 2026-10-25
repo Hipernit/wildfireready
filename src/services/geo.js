@@ -1,3 +1,10 @@
+import { LOCATIONS } from '../data/locations';
+
+// Nearest WA-08 community to a { lat, lon } point, with its distance in miles.
+export function nearestLocation(point) {
+  return LOCATIONS.map((l) => ({ loc: l, mi: distanceMiles(point, l) })).sort((a, b) => a.mi - b.mi)[0];
+}
+
 // Great-circle distance in miles between two { lat, lon } points.
 export function distanceMiles(a, b) {
   const R = 3958.8; // Earth radius, miles

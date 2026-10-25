@@ -17,17 +17,22 @@ import { DataSection, DataStatus } from '../components/StatusLine';
 const FIRES_SHOWN = 6;
 
 // Fire status → theme tone + icon (status is never shown by color alone).
-const FIRE_TONE = { active:'danger', monitoring:'warning', contained:'success', unknown:'textMid' };
-const FIRE_ICON = { active:'flame', monitoring:'eye-outline', contained:'checkmark-circle-outline', unknown:'help-circle-outline' };
+const FIRE_TONE = { active: 'danger', monitoring: 'warning', contained: 'success', unknown: 'textMid' };
+const FIRE_ICON = {
+  active: 'flame',
+  monitoring: 'eye-outline',
+  contained: 'checkmark-circle-outline',
+  unknown: 'help-circle-outline',
+};
 
 // Advisory banners are app guidance derived from the AirNow reading, not
 // official alerts.
 function aqiAdvisory(cat, t, theme) {
   if (cat === 'unhealthy' || cat === 'veryUnhealthy' || cat === 'hazardous') {
-    return { bg: theme.dangerBg, tc: theme.danger, title:t.banners.danger.title, msg:t.banners.danger.msg };
+    return { bg: theme.dangerBg, tc: theme.danger, title: t.banners.danger.title, msg: t.banners.danger.msg };
   }
   if (cat === 'sensitive') {
-    return { bg: theme.warningBg, tc: theme.warning, title:t.banners.warning.title, msg:t.banners.warning.msg };
+    return { bg: theme.warningBg, tc: theme.warning, title: t.banners.warning.title, msg: t.banners.warning.msg };
   }
   return null;
 }
@@ -37,33 +42,45 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
   const t = useLang();
   const lang = useLangCode();
 
-  const [aqi, setAqi] = useState(null);
+  // Location-specific results remember which community they belong to, so a
+  // result for the previous community reads as "loading" without resetting
+  // state inside the effect.
+  const [aqiRes, setAqiRes] = useState({ loc: null, data: null });
+  const [alertRes, setAlertRes] = useState({ loc: null, data: null });
   const [fires, setFires] = useState(null);
-  const [alerts, setAlerts] = useState(null);
-  const [aqiLoading, setAqiLoading] = useState(true);
-  const [fireLoading, setFireLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [focusId, setFocusId] = useState(null);
+  const [focus, setFocus] = useState({ loc: null, id: null });
   const scrollRef = useRef(null);
   const cardY = useRef({});
 
+  const aqiLoading = aqiRes.loc !== loc;
+  const aqi = aqiLoading ? null : aqiRes.data;
+  const alerts = alertRes.loc === loc ? alertRes.data : null;
+  const fireLoading = fires === null;
+  const focusId = focus.loc === loc ? focus.id : null;
+
   // Each source fills in as soon as it answers, so one slow API never holds
   // the others on a spinner.
-  const loadAll = useCallback((k) => Promise.all([
-    fetchAQI(k).then((d) => { setAqi(d); setAqiLoading(false); }),
-    fetchLiveFires().then((d) => { setFires(d); setFireLoading(false); }),
-    fetchNwsAlerts(k).then(setAlerts),
-  ]), []);
+  const loadAll = useCallback(
+    (k) =>
+      Promise.all([
+        fetchAQI(k).then((data) => setAqiRes({ loc: k, data })),
+        fetchLiveFires().then(setFires),
+        fetchNwsAlerts(k).then((data) => setAlertRes({ loc: k, data })),
+      ]),
+    [],
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    delete aqiCache[loc]; delete alertCache[loc]; fireCache.ts = 0;
+    delete aqiCache[loc];
+    delete alertCache[loc];
+    fireCache.ts = 0;
     await loadAll(loc);
     setRefreshing(false);
   }, [loc, loadAll]);
 
   useEffect(() => {
-    setFocusId(null); setAqiLoading(true); setAlerts(null);
     loadAll(loc);
   }, [loc, loadAll]);
 
@@ -88,22 +105,34 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
       const title = f.name || t.unnamedFire;
       const acres = f.acres != null ? `${formatNumber(f.acres, lang)} ${t.acresWord}` : t.unknown;
       const dist = mi != null ? fmt(t.distanceFrom, { mi, community: location?.label }) : '';
-      return { ...f, mi, near: mi != null && mi <= NEARBY_MILES, title, dist, subtitle: [acres, dist].filter(Boolean).join(' · ') };
+      return {
+        ...f,
+        mi,
+        near: mi != null && mi <= NEARBY_MILES,
+        title,
+        dist,
+        subtitle: [acres, dist].filter(Boolean).join(' · '),
+      };
     });
   }, [fires, location, t, lang]);
   const focusFires = useMemo(() => nearest.slice(0, 3).filter((f) => f.lat != null), [nearest]);
 
-  const scrollToFire = useCallback((id) => {
-    const y = cardY.current[id];
-    setFocusId(id);
-    if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-  }, []);
+  const scrollToFire = useCallback(
+    (id) => {
+      const y = cardY.current[id];
+      setFocus({ loc, id });
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    },
+    [loc],
+  );
 
   const toggleAlertsDone = () => {
     if (!location) return;
     setActions((a) => ({
       ...a,
-      alertsCounties: alertsDone ? a.alertsCounties.filter((c) => c !== location.county) : [...a.alertsCounties, location.county],
+      alertsCounties: alertsDone
+        ? a.alertsCounties.filter((c) => c !== location.county)
+        : [...a.alertsCounties, location.county],
     }));
   };
 
@@ -114,9 +143,11 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
   return (
     <ScrollView
       ref={scrollRef}
-      style={{ flex:1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />
+      }
     >
       <LocPicker value={loc} onChange={setLoc} />
 
@@ -132,7 +163,7 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
       {advisory && (
         <View style={[s.banner, { backgroundColor: advisory.bg, borderColor: advisory.tc }]} accessibilityRole="alert">
           <Ionicons name="warning" size={20} color={advisory.tc} />
-          <View style={{ flex:1 }}>
+          <View style={{ flex: 1 }}>
             <Text style={[s.bannerTitle, { color: advisory.tc }]}>{advisory.title}</Text>
             <Text style={[s.bannerBody, { color: theme.textMid }]}>{advisory.msg}</Text>
           </View>
@@ -143,7 +174,7 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
       <DataSection
         loading={aqiLoading}
         loadingLabel={t.fetchingAqi}
-        result={reading ? aqi : aqi && { status:'unavailable' }}
+        result={reading ? aqi : aqi && { status: 'unavailable' }}
         unavailableTitle={aqiUnavailable[0]}
         unavailableMsg={aqiUnavailable[1]}
       >
@@ -158,12 +189,16 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
               <Text style={[s.aqiNum, { color: theme.text }]}>{reading.aqi}</Text>
               <Text style={[s.aqiUnit, { color: theme.textMid }]}>{t.aqiUnit}</Text>
             </View>
-            <View style={{ flex:1 }}>
+            <View style={{ flex: 1 }}>
               <Text style={[s.aqiStatus, { color: theme.text }]}>{t.aqiLabels[reading.cat]}</Text>
               <Text style={[s.aqiMsg, { color: theme.textMid }]}>{t.aqiMsgs[reading.cat]}</Text>
               <DataStatus status={aqi.status} fetchedAt={aqi.fetchedAt} extra={t.prelimData} />
-              {aqi.reason === 'noKey' && <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop:4 }]}>{t.aqiNoKey}</Text>}
-              {aqi.reason === 'badKey' && <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop:4 }]}>{t.aqiBadKey}</Text>}
+              {aqi.reason === 'noKey' && (
+                <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop: 4 }]}>{t.aqiNoKey}</Text>
+              )}
+              {aqi.reason === 'badKey' && (
+                <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop: 4 }]}>{t.aqiBadKey}</Text>
+              )}
             </View>
           </View>
         )}
@@ -189,16 +224,32 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
           return (
             <View
               key={f.id}
-              onLayout={(e) => { cardY.current[f.id] = e.nativeEvent.layout.y; }}
+              onLayout={(e) => {
+                cardY.current[f.id] = e.nativeEvent.layout.y;
+              }}
               accessible
               accessibilityLabel={fmt(t.fireA11y, { name: f.title, status, distance: f.dist, acres, contained })}
-              style={[s.fireCard, { backgroundColor: theme.surface, borderColor: focused ? theme.accent : f.near ? theme.danger : theme.border, borderWidth: focused || f.near ? 2 : 1 }]}
+              style={[
+                s.fireCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: focused ? theme.accent : f.near ? theme.danger : theme.border,
+                  borderWidth: focused || f.near ? 2 : 1,
+                },
+              ]}
             >
               <View style={s.fireHead}>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={[s.fireName, { color: theme.text }]}>{f.title}</Text>
                   {f.mi != null && (
-                    <Text style={{ fontSize:13, marginTop:2, color: f.near ? theme.danger : theme.textMid, fontWeight: f.near ? '700' : '500' }}>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        marginTop: 2,
+                        color: f.near ? theme.danger : theme.textMid,
+                        fontWeight: f.near ? '700' : '500',
+                      }}
+                    >
                       {f.dist}
                     </Text>
                   )}
@@ -209,23 +260,34 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
                 </View>
               </View>
               {f.near && (
-                <View style={{ marginHorizontal:14, marginTop:-6, marginBottom:10 }}>
-                  <View style={[s.tag, { backgroundColor: theme.dangerBg, alignSelf:'flex-start', flexDirection:'row', alignItems:'center', gap:4 }]}>
+                <View style={{ marginHorizontal: 14, marginTop: -6, marginBottom: 10 }}>
+                  <View
+                    style={[
+                      s.tag,
+                      {
+                        backgroundColor: theme.dangerBg,
+                        alignSelf: 'flex-start',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                      },
+                    ]}
+                  >
                     <Ionicons name="warning" size={12} color={theme.danger} />
                     <Text style={[s.tagTxt, { color: theme.danger }]}>{fmt(t.nearbyBadge, { mi: NEARBY_MILES })}</Text>
                   </View>
                 </View>
               )}
               <View style={[s.fireStats, { borderTopColor: theme.borderLight }]}>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{acres}</Text>
                   <Text style={[s.fstatKey, { color: theme.textMid }]}>{t.acres}</Text>
                 </View>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{contained}</Text>
                   <Text style={[s.fstatKey, { color: theme.textMid }]}>{t.contained}</Text>
                 </View>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={[s.fstatVal, { color: theme.text }]}>{f.county ?? t.unknown}</Text>
                   <Text style={[s.fstatKey, { color: theme.textMid }]}>{t.county}</Text>
                 </View>
@@ -235,7 +297,9 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
                   {t.cause}: {f.cause ? (t.fireCauses[f.cause] ?? f.cause) : t.underInvestigation}
                 </Text>
                 {f.modifiedAt != null && (
-                  <Text style={[s.fireFooterMeta, { color: theme.textMid }]}>{t.updated} {formatShortDate(f.modifiedAt, lang)}</Text>
+                  <Text style={[s.fireFooterMeta, { color: theme.textMid }]}>
+                    {t.updated} {formatShortDate(f.modifiedAt, lang)}
+                  </Text>
                 )}
               </View>
             </View>
@@ -255,22 +319,46 @@ export default function HomeScreen({ loc, setLoc, actions, setActions }) {
       {county && (
         <View style={[s.ctaCard, { backgroundColor: theme.darkCard }]}>
           <Text style={[s.ctaTitle, { color: theme.darkCardText }]}>{t.getAlerts}</Text>
-          <Text style={[s.ctaBody, { color: theme.darkCardSub }]}>{fmt(t.alertsBody, { community: location.label, county: location.county })}</Text>
-          <TouchableOpacity style={[s.ctaBtn, { backgroundColor: theme.accent }]} onPress={() => Linking.openURL(county.alertUrl).catch(() => {})} accessibilityRole="link">
-            <Text style={[s.ctaBtnTxt, { color: theme.onAccent }]}>{fmt(t.signUpAlerts, { name: county.alertName })}</Text>
+          <Text style={[s.ctaBody, { color: theme.darkCardSub }]}>
+            {fmt(t.alertsBody, { community: location.label, county: location.county })}
+          </Text>
+          <TouchableOpacity
+            style={[s.ctaBtn, { backgroundColor: theme.accent }]}
+            onPress={() => Linking.openURL(county.alertUrl).catch(() => {})}
+            accessibilityRole="link"
+          >
+            <Text style={[s.ctaBtnTxt, { color: theme.onAccent }]}>
+              {fmt(t.signUpAlerts, { name: county.alertName })}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={toggleAlertsDone}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: alertsDone }}
-            style={[s.ctaBtn, { backgroundColor: alertsDone ? theme.successBg : 'transparent', borderWidth:1.5, borderColor: alertsDone ? theme.success : theme.darkCardMuted, marginTop:10, flexDirection:'row', gap:8 }]}
+            style={[
+              s.ctaBtn,
+              {
+                backgroundColor: alertsDone ? theme.successBg : 'transparent',
+                borderWidth: 1.5,
+                borderColor: alertsDone ? theme.success : theme.darkCardMuted,
+                marginTop: 10,
+                flexDirection: 'row',
+                gap: 8,
+              },
+            ]}
           >
-            <Ionicons name={alertsDone ? 'checkbox' : 'square-outline'} size={20} color={alertsDone ? theme.success : theme.darkCardText} />
-            <Text style={[s.ctaBtnTxt, { color: alertsDone ? theme.success : theme.darkCardText, flexShrink:1 }]}>{alertsDone ? t.alertsDone : t.markAlertsDone}</Text>
+            <Ionicons
+              name={alertsDone ? 'checkbox' : 'square-outline'}
+              size={20}
+              color={alertsDone ? theme.success : theme.darkCardText}
+            />
+            <Text style={[s.ctaBtnTxt, { color: alertsDone ? theme.success : theme.darkCardText, flexShrink: 1 }]}>
+              {alertsDone ? t.alertsDone : t.markAlertsDone}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
-      <View style={{ height:20 }} />
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }

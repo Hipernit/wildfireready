@@ -7,11 +7,11 @@ import { useTheme } from '../theme';
 import { useLang } from '../i18n';
 
 const TABS = [
-  { k:'home',    icon:'flame' },
-  { k:'weather', icon:'partly-sunny' },
-  { k:'gobag',   icon:'bag-handle' },
-  { k:'score',   icon:'ribbon' },
-  { k:'plan',    icon:'map' },
+  { k: 'home', icon: 'flame' },
+  { k: 'weather', icon: 'partly-sunny' },
+  { k: 'gobag', icon: 'bag-handle' },
+  { k: 'score', icon: 'ribbon' },
+  { k: 'plan', icon: 'map' },
 ];
 
 export default function TabBar({ active, onSelect }) {
@@ -20,7 +20,10 @@ export default function TabBar({ active, onSelect }) {
   const insets = useSafeAreaInsets();
   return (
     <View
-      style={[s.tabBar, { backgroundColor: theme.tabBar, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 6) }]}
+      style={[
+        s.tabBar,
+        { backgroundColor: theme.tabBar, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 6) },
+      ]}
       accessibilityRole="tablist"
     >
       {TABS.map((tb) => {
@@ -36,7 +39,9 @@ export default function TabBar({ active, onSelect }) {
             accessibilityLabel={t.tabs[tb.k]}
           >
             <Ionicons name={isActive ? tb.icon : `${tb.icon}-outline`} size={22} color={color} />
-            <Text style={[s.tabLabel, { color, fontWeight: isActive ? '700' : '500' }]} numberOfLines={1}>{t.tabs[tb.k]}</Text>
+            <Text style={[s.tabLabel, { color, fontWeight: isActive ? '700' : '500' }]} numberOfLines={1}>
+              {t.tabs[tb.k]}
+            </Text>
           </TouchableOpacity>
         );
       })}

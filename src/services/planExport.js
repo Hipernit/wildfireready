@@ -3,9 +3,13 @@ import { fmt, formatDate, formatDateTime } from '../i18n';
 // ── PRINTABLE PLAN ────────────────────────────────────────────────────────
 // Builds a self-contained, print-friendly (black on white) HTML page of the
 // household's evacuation plan for expo-print.
-const esc = (v) => String(v ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const esc = (v) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 function verifiedLabel(record, t, lang) {
   return record.lastVerified ? fmt(t.verifiedOn, { date: formatDate(record.lastVerified, lang) }) : t.unverified;
@@ -19,28 +23,38 @@ export function buildPlanHtml({ t, lang, location, routes, contacts, county, pro
     `<p><b>${esc(t.outOfAreaContact)}:</b> ${esc([profile.contactName, profile.contactPhone].filter((v) => v?.trim()).join(' · ') || t.notSet)}</p>`,
   ].join('');
 
-  const routeHtml = routes.map((r) => {
-    const time = routeTime(r);
-    const shelters = r.shelters.map((sh) => `
+  const routeHtml = routes
+    .map((r) => {
+      const time = routeTime(r);
+      const shelters = r.shelters
+        .map(
+          (sh) => `
       <div class="sh"><b>${esc(sh.use === 'animals' ? t.animalShelterLabel : t.shelterLabel)}:</b>
-        ${esc(sh.name)}, ${esc(sh.address)} <span class="v">(${esc(verifiedLabel(sh, t, lang))})</span></div>`).join('');
-    return `
+        ${esc(sh.name)}, ${esc(sh.address)} <span class="v">(${esc(verifiedLabel(sh, t, lang))})</span></div>`,
+        )
+        .join('');
+      return `
       <div class="route">
         <h3>${esc(r.num)}. ${esc(r.name)}${time ? ` <span class="time">${esc(time)}</span>` : ''}</h3>
         <p>${esc(r.desc)}</p>
         ${shelters}
         <p class="v">${esc(verifiedLabel(r, t, lang))}</p>
       </div>`;
-  }).join('');
+    })
+    .join('');
 
   const contactHtml = contacts.map((c) => `<tr><td>${esc(c.name)}</td><td><b>${esc(c.detail)}</b></td></tr>`).join('');
 
-  const countyHtml = county ? `
+  const countyHtml = county
+    ? `
     <h2>${esc(fmt(t.countyResources, { county: location.county }))}</h2>
     <p>${esc(fmt(t.signUpAlerts, { name: county.alertName }))}: ${esc(county.alertUrl)}</p>
-    ${county.evacMapUrl ? `<p>${esc(t.evacLookup)}: ${esc(county.evacMapUrl)}</p>` : `<p>${esc(t.noEvacLookup)}</p>`}` : '';
+    ${county.evacMapUrl ? `<p>${esc(t.evacLookup)}: ${esc(county.evacMapUrl)}</p>` : `<p>${esc(t.noEvacLookup)}</p>`}`
+    : '';
 
-  const levels = t.levelTags.map((tag, i) => `<li><b>${i + 1} — ${esc(tag)}:</b> ${esc(t.levelActions[i])}</li>`).join('');
+  const levels = t.levelTags
+    .map((tag, i) => `<li><b>${i + 1} — ${esc(tag)}:</b> ${esc(t.levelActions[i])}</li>`)
+    .join('');
 
   return `<!DOCTYPE html>
 <html lang="${esc(lang)}">

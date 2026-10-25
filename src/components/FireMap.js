@@ -28,15 +28,32 @@ export default function FireMap({ loc, fires, focusFires, nearMiles, onSelectFir
     // so dark mode inverts the standard OSM tiles with a CSS filter instead.
     const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     const attr = '&copy; OpenStreetMap contributors';
-    const tileFilter = isDark ? '.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}' : '';
+    const tileFilter = isDark
+      ? '.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}'
+      : '';
     const data = {
       locs: LOCATIONS.map((l) => ({ lat: l.lat, lon: l.lon, label: l.label, sel: l.key === loc })),
       fires: fires.map((f) => ({ id: f.id, lat: f.lat, lon: f.lon, name: f.title, sub: f.subtitle, near: f.near })),
       focus: focusFires.map((f) => [f.lat, f.lon]),
-      colors: { you: theme.info, other: theme.textLight, near: theme.danger, fire: theme.warning, button: theme.accent, ring: theme.surface, text: theme.text, bg: theme.surface, onAccent: theme.onAccent },
+      colors: {
+        you: theme.info,
+        other: theme.textLight,
+        near: theme.danger,
+        fire: theme.warning,
+        button: theme.accent,
+        ring: theme.surface,
+        text: theme.text,
+        bg: theme.surface,
+        onAccent: theme.onAccent,
+      },
       labels: {
         details: t.mapDetails,
-        legend: [[t.legendYou, 'you'], [t.legendOther, 'other'], [fmt(t.legendFireNear, { mi: nearMiles }), 'near'], [t.legendFire, 'fire']],
+        legend: [
+          [t.legendYou, 'you'],
+          [t.legendOther, 'other'],
+          [fmt(t.legendFireNear, { mi: nearMiles }), 'near'],
+          [t.legendFire, 'fire'],
+        ],
       },
     };
     return `<!DOCTYPE html>
@@ -96,7 +113,14 @@ ${tileFilter}
   if (!WebView) return null;
   return (
     <View
-      style={{ height: 240, marginHorizontal: 16, borderRadius: 12, marginTop: 12, overflow: 'hidden', backgroundColor: theme.surfaceAlt }}
+      style={{
+        height: 240,
+        marginHorizontal: 16,
+        borderRadius: 12,
+        marginTop: 12,
+        overflow: 'hidden',
+        backgroundColor: theme.surfaceAlt,
+      }}
       accessibilityLabel={t.mapA11y}
     >
       <WebView

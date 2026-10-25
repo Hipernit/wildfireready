@@ -6,7 +6,7 @@ import { useTheme } from '../theme';
 import { useLang, useLangCode, fmt } from '../i18n';
 import { findLocation } from '../data/locations';
 
-const THEME_ICON = { system:'contrast-outline', light:'sunny-outline', dark:'moon-outline' };
+const THEME_ICON = { system: 'contrast-outline', light: 'sunny-outline', dark: 'moon-outline' };
 
 export default function Header({ themePref, loc, onToggleLang, onCycleTheme }) {
   const theme = useTheme();
@@ -17,14 +17,18 @@ export default function Header({ themePref, loc, onToggleLang, onCycleTheme }) {
   return (
     <View style={[s.header, { backgroundColor: theme.header }]}>
       <View style={s.headerLeft}>
-        <Text style={[s.brand, { color: theme.headerText }]} accessibilityRole="header" numberOfLines={1}>WildfireReady</Text>
+        <Text style={[s.brand, { color: theme.headerText }]} accessibilityRole="header" numberOfLines={1}>
+          WildfireReady
+        </Text>
         {community && (
           <View style={[s.headerChip, { backgroundColor: theme.headerChip }]}>
-            <Text style={[s.headerChipTxt, { color: theme.headerSub }]} numberOfLines={1}>{community}</Text>
+            <Text style={[s.headerChipTxt, { color: theme.headerSub }]} numberOfLines={1}>
+              {community}
+            </Text>
           </View>
         )}
       </View>
-      <View style={{ flexDirection:'row', alignItems:'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity
           style={s.iconBtn}
           onPress={onCycleTheme}

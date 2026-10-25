@@ -7,7 +7,7 @@ export async function readJSON(key) {
   try {
     const raw = await AsyncStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -15,7 +15,7 @@ export async function readJSON(key) {
 export async function writeJSON(key, value) {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {}
+  } catch {}
 }
 
 // Last successful live response per source + location, used offline.

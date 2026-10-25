@@ -25,7 +25,11 @@ export function migrateState(saved) {
   return {
     lang: pick(saved.lang, ['en', 'es'], DEFAULT_STATE.lang),
     themePref: pick(saved.themePref, ['system', 'light', 'dark'], DEFAULT_STATE.themePref),
-    loc: pick(saved.loc, LOCATIONS.map((l) => l.key), DEFAULT_STATE.loc),
+    loc: pick(
+      saved.loc,
+      LOCATIONS.map((l) => l.key),
+      DEFAULT_STATE.loc,
+    ),
     checked: Array.isArray(saved.checked) ? saved.checked.filter((id) => typeof id === 'string') : [],
     profile: { ...DEFAULT_PROFILE, ...(saved.profile || {}) },
     actions: {

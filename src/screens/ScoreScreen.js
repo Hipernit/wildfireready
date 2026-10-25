@@ -18,9 +18,11 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
   };
 
   return (
-    <ScrollView style={{ flex:1, backgroundColor: theme.bg }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} showsVerticalScrollIndicator={false}>
       <View style={[s.scoreHero, { backgroundColor: theme.darkCard }]}>
-        <Text style={[s.scoreTitle, { color: theme.darkCardText }]} accessibilityRole="header">{t.scoreTitle}</Text>
+        <Text style={[s.scoreTitle, { color: theme.darkCardText }]} accessibilityRole="header">
+          {t.scoreTitle}
+        </Text>
         <Text style={[s.scoreSubtitle, { color: theme.darkCardSub }]}>{t.scoreSubtitle}</Text>
         <View style={s.scoreCircleWrap}>
           <View
@@ -34,7 +36,11 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
           </View>
         </View>
         <Text style={[s.scoreGradeMsg, { color: theme.darkCardSub }]}>{t.scoreGrades[score.grade]}</Text>
-        <TouchableOpacity style={[s.shareScoreBtn, { backgroundColor: theme.accent }]} onPress={share} accessibilityRole="button">
+        <TouchableOpacity
+          style={[s.shareScoreBtn, { backgroundColor: theme.accent }]}
+          onPress={share}
+          accessibilityRole="button"
+        >
           <Text style={[s.shareScoreBtnTxt, { color: theme.onAccent }]}>{t.shareScore}</Text>
         </TouchableOpacity>
       </View>
@@ -48,11 +54,16 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
                 key={fix.key}
                 onPress={() => onNavigate(fix.target)}
                 accessibilityRole="button"
-                style={[s.fixRow, i < score.fixes.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }]]}
+                style={[
+                  s.fixRow,
+                  i < score.fixes.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }],
+                ]}
               >
                 <Ionicons name="arrow-forward-circle" size={22} color={theme.accentText} />
                 <Text style={[s.fixTxt, { color: theme.text }]}>{t.fixItems[fix.key]}</Text>
-                <Text style={{ fontSize:12, fontWeight:'700', color: theme.success }}>{fmt(t.fixGain, { n: fix.gain })}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: theme.success }}>
+                  {fmt(t.fixGain, { n: fix.gain })}
+                </Text>
                 <Ionicons name="chevron-forward" size={18} color={theme.textMid} />
               </TouchableOpacity>
             ))}
@@ -65,16 +76,23 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
         {score.categories.map((cat, i) => {
           const fill = cat.pct === 100 ? theme.success : cat.pct >= 60 ? theme.warning : theme.danger;
           return (
-            <View key={cat.key} style={[s.catRow, i < score.categories.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }]]}>
-              <View style={{ flex:1 }}>
+            <View
+              key={cat.key}
+              style={[
+                s.catRow,
+                i < score.categories.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }],
+              ]}
+            >
+              <View style={{ flex: 1 }}>
                 <Text style={[s.catName, { color: theme.text }]}>{t.categories[cat.key]}</Text>
                 <Text style={[s.catDesc, { color: theme.textMid }]}>{t.catDescs[cat.key]}</Text>
                 <View style={[s.catTrack, { backgroundColor: theme.borderLight }]}>
-                  <View style={[s.catFill, { width:`${cat.pct}%`, backgroundColor: fill }]} />
+                  <View style={[s.catFill, { width: `${cat.pct}%`, backgroundColor: fill }]} />
                 </View>
               </View>
               <Text style={[s.catScore, { color: cat.score === cat.max ? theme.success : theme.textMid }]}>
-                {cat.score}<Text style={{ fontSize:11, color: theme.textLight }}>/{cat.max}</Text>
+                {cat.score}
+                <Text style={{ fontSize: 11, color: theme.textLight }}>/{cat.max}</Text>
               </Text>
             </View>
           );
@@ -86,9 +104,9 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
         onPress={() => onNavigate('profile')}
         accessibilityRole="button"
       >
-        <Text style={[s.resetBtnTxt, { color: theme.accentText, fontWeight:'600' }]}>{t.editProfile}</Text>
+        <Text style={[s.resetBtnTxt, { color: theme.accentText, fontWeight: '600' }]}>{t.editProfile}</Text>
       </TouchableOpacity>
-      <View style={{ height:20 }} />
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }

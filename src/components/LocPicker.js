@@ -7,14 +7,7 @@ import { s } from '../styles';
 import { useTheme } from '../theme';
 import { useLang, fmt } from '../i18n';
 import { LOCATIONS, findLocation } from '../data/locations';
-import { distanceMiles } from '../services/geo';
-
-// Nearest WA-08 community to a point, with its distance in miles.
-export function nearestLocation(point) {
-  return LOCATIONS
-    .map((l) => ({ loc: l, mi: distanceMiles(point, l) }))
-    .sort((a, b) => a.mi - b.mi)[0];
-}
+import { nearestLocation } from '../services/geo';
 
 export default function LocPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -24,20 +17,39 @@ export default function LocPicker({ value, onChange }) {
   const t = useLang();
   const loc = findLocation(value);
 
-  const close = () => { setOpen(false); setGeoMsg(null); };
+  const GEO_TIMEOUT_MS = 15000;
+
+  const close = () => {
+    setOpen(false);
+    setGeoMsg(null);
+  };
 
   // One-shot, low-accuracy fix; the position is used only to pick a
   // community and is not stored.
   const useMyLocation = async () => {
-    setLocating(true); setGeoMsg(null);
+    setLocating(true);
+    setGeoMsg(null);
     try {
       const { granted } = await Location.requestForegroundPermissionsAsync();
-      if (!granted) { setGeoMsg(t.locationDenied); return; }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      if (!granted) {
+        setGeoMsg(t.locationDenied);
+        return;
+      }
+      if (!(await Location.hasServicesEnabledAsync())) throw new Error('location services off');
+      // Low accuracy is enough to pick a community, so skip Android's
+      // "improve location accuracy" prompt. A fix can hang indefinitely, so
+      // give up after GEO_TIMEOUT_MS and fall back to the last known fix.
+      const current = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Low,
+        mayShowUserSettingsDialog: false,
+      }).catch(() => null);
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(null), GEO_TIMEOUT_MS));
+      const pos = (await Promise.race([current, timeout])) || (await Location.getLastKnownPositionAsync());
+      if (!pos) throw new Error('no position');
       const best = nearestLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
       onChange(best.loc.key);
       setGeoMsg(fmt(t.nearestPicked, { name: best.loc.label, mi: Math.round(best.mi) }));
-    } catch (e) {
+    } catch {
       setGeoMsg(t.locationError);
     } finally {
       setLocating(false);
@@ -59,45 +71,75 @@ export default function LocPicker({ value, onChange }) {
 
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
         <SafeAreaProvider>
-          <SafeAreaView style={{ flex:1, backgroundColor: theme.bg }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
             <View style={[s.modalHead, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-              <Text style={[s.modalTitle, { color: theme.text }]} accessibilityRole="header">{t.chooseLocation}</Text>
+              <Text style={[s.modalTitle, { color: theme.text }]} accessibilityRole="header">
+                {t.chooseLocation}
+              </Text>
               <TouchableOpacity onPress={close} style={s.modalHeadBtn} accessibilityRole="button">
                 <Text style={[s.modalDone, { color: theme.accentText }]}>{t.done}</Text>
               </TouchableOpacity>
             </View>
             <ScrollView>
               <TouchableOpacity
-                style={[s.locItem, { backgroundColor: theme.surface, borderColor: theme.border, justifyContent:'flex-start' }]}
+                style={[
+                  s.locItem,
+                  { backgroundColor: theme.surface, borderColor: theme.border, justifyContent: 'flex-start' },
+                ]}
                 onPress={useMyLocation}
                 disabled={locating}
                 accessibilityRole="button"
               >
-                {locating ? <ActivityIndicator color={theme.accent} /> : <Ionicons name="navigate" size={20} color={theme.accentText} />}
-                <Text style={[s.locName, { color: theme.accentText, fontWeight:'600', flex:1 }]}>{locating ? t.locating : t.useMyLocation}</Text>
+                {locating ? (
+                  <ActivityIndicator color={theme.accent} />
+                ) : (
+                  <Ionicons name="navigate" size={20} color={theme.accentText} />
+                )}
+                <Text style={[s.locName, { color: theme.accentText, fontWeight: '600', flex: 1 }]}>
+                  {locating ? t.locating : t.useMyLocation}
+                </Text>
               </TouchableOpacity>
               {geoMsg && (
-                <Text style={[s.intro, { color: theme.textMid, marginTop:8 }]} accessibilityLiveRegion="polite">{geoMsg}</Text>
+                <Text style={[s.intro, { color: theme.textMid, marginTop: 8 }]} accessibilityLiveRegion="polite">
+                  {geoMsg}
+                </Text>
               )}
               {LOCATIONS.map((l) => {
                 const selected = l.key === value;
                 return (
                   <TouchableOpacity
                     key={l.key}
-                    style={[s.locItem, { backgroundColor: theme.surface, borderColor: selected ? theme.accent : theme.border }, selected && s.locItemActive]}
-                    onPress={() => { onChange(l.key); close(); }}
+                    style={[
+                      s.locItem,
+                      { backgroundColor: theme.surface, borderColor: selected ? theme.accent : theme.border },
+                      selected && s.locItemActive,
+                    ]}
+                    onPress={() => {
+                      onChange(l.key);
+                      close();
+                    }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                   >
-                    <View style={{ flex:1 }}>
-                      <Text style={[s.locName, { color: selected ? theme.accentText : theme.text }, selected && { fontWeight:'700' }]}>{l.label}</Text>
-                      <Text style={[s.locCounty, { color: theme.textMid }]}>{fmt(t.countyName, { name: l.county })} · {l.zip}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          s.locName,
+                          { color: selected ? theme.accentText : theme.text },
+                          selected && { fontWeight: '700' },
+                        ]}
+                      >
+                        {l.label}
+                      </Text>
+                      <Text style={[s.locCounty, { color: theme.textMid }]}>
+                        {fmt(t.countyName, { name: l.county })} · {l.zip}
+                      </Text>
                     </View>
                     {selected && <Ionicons name="checkmark" size={22} color={theme.accentText} />}
                   </TouchableOpacity>
                 );
               })}
-              <View style={{ height:24 }} />
+              <View style={{ height: 24 }} />
             </ScrollView>
           </SafeAreaView>
         </SafeAreaProvider>

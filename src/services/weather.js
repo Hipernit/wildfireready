@@ -17,11 +17,7 @@ export function estimateFireRisk({ tempF, windMph, gustMph, minRH }) {
   const windPts = clamp(windEff * 1.5, 0, 30);
   const score = Math.round(tempPts + rhPts + windPts);
   const level =
-    score >= 75 ? 'Extreme'
-    : score >= 55 ? 'High'
-    : score >= 35 ? 'Moderate'
-    : score >= 15 ? 'Low'
-    : 'Minimal';
+    score >= 75 ? 'Extreme' : score >= 55 ? 'High' : score >= 35 ? 'Moderate' : score >= 15 ? 'Low' : 'Minimal';
   return { level, score, rhMissing: minRH == null };
 }
 
@@ -62,7 +58,7 @@ const toMph = (series, v) =>
 export const wxCache = {};
 const WX_CACHE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
-const NWS_HEADERS = { 'User-Agent': NWS_UA, 'Accept': 'application/geo+json' };
+const NWS_HEADERS = { 'User-Agent': NWS_UA, Accept: 'application/geo+json' };
 
 async function getJSON(url) {
   const res = await fetchWithTimeout(url, { headers: NWS_HEADERS });
@@ -75,23 +71,41 @@ async function getJSON(url) {
 function demoForecast(locationKey) {
   const isEast = EAST.includes(locationKey);
   const base = isEast
-    ? [[89, '15 to 20 mph', 28, 18, 'SW', 'Sunny and hot'], [94, '20 mph', 32, 15, 'SW', 'Sunny'], [81, '10 mph', 18, 30, 'W', 'Partly Cloudy']]
-    : [[72, '5 to 10 mph', 15, 45, 'W', 'Mostly Sunny'], [78, '10 mph', 18, 38, 'SW', 'Sunny'], [82, '10 to 15 mph', 22, 33, 'S', 'Sunny']];
+    ? [
+        [89, '15 to 20 mph', 28, 18, 'SW', 'Sunny and hot'],
+        [94, '20 mph', 32, 15, 'SW', 'Sunny'],
+        [81, '10 mph', 18, 30, 'W', 'Partly Cloudy'],
+      ]
+    : [
+        [72, '5 to 10 mph', 15, 45, 'W', 'Mostly Sunny'],
+        [78, '10 mph', 18, 38, 'SW', 'Sunny'],
+        [82, '10 to 15 mph', 22, 33, 'S', 'Sunny'],
+      ];
   const names = ['Today', 'Tomorrow', 'Wednesday'];
   const periods = base.map(([temp, wind, gustMph, minRH, windDir, forecast], i) => {
     const windMph = parseWindMph(wind);
-    return { name: names[i], temp, wind, windMph, gustMph, minRH, windDir, forecast, risk: estimateFireRisk({ tempF: temp, windMph, gustMph, minRH }) };
+    return {
+      name: names[i],
+      temp,
+      wind,
+      windMph,
+      gustMph,
+      minRH,
+      windDir,
+      forecast,
+      risk: estimateFireRisk({ tempF: temp, windMph, gustMph, minRH }),
+    };
   });
-  return { status:'demo', fetchedAt: Date.now(), periods };
+  return { status: 'demo', fetchedAt: Date.now(), periods };
 }
 
 async function offlineForecast(locationKey, reason) {
   const saved = await readJSON(lastGoodKey('wx', locationKey));
   // Drop periods that have already ended.
   const periods = (saved?.periods || []).filter((p) => !p.endTime || Date.parse(p.endTime) > Date.now());
-  if (periods.length) return { status:'cached', reason, fetchedAt: saved.fetchedAt, periods };
+  if (periods.length) return { status: 'cached', reason, fetchedAt: saved.fetchedAt, periods };
   if (DEMO_MODE) return demoForecast(locationKey);
-  return { status:'unavailable', reason };
+  return { status: 'unavailable', reason };
 }
 
 // Result: { status: 'live'|'cached'|'demo'|'unavailable', reason?, fetchedAt?, periods? }
@@ -100,7 +114,7 @@ export async function fetchFireWeather(locationKey) {
   if (cached && Date.now() - cached.ts < WX_CACHE_MS) return cached.result;
 
   const loc = findLocation(locationKey);
-  if (!loc) return { status:'unavailable', reason:'error' };
+  if (!loc) return { status: 'unavailable', reason: 'error' };
 
   try {
     const pt = await getJSON(`https://api.weather.gov/points/${loc.lat},${loc.lon}`);
@@ -137,11 +151,11 @@ export async function fetchFireWeather(locationKey) {
         };
       });
 
-    const result = { status:'live', fetchedAt: Date.now(), periods };
+    const result = { status: 'live', fetchedAt: Date.now(), periods };
     wxCache[locationKey] = { result, ts: Date.now() };
     await writeJSON(lastGoodKey('wx', locationKey), { fetchedAt: result.fetchedAt, periods });
     return result;
-  } catch (e) {
+  } catch {
     return offlineForecast(locationKey, 'offline');
   }
 }
@@ -167,7 +181,7 @@ export async function fetchNwsAlerts(locationKey) {
   if (cached && Date.now() - cached.ts < ALERT_CACHE_MS) return cached.result;
 
   const loc = findLocation(locationKey);
-  if (!loc) return { status:'unavailable' };
+  if (!loc) return { status: 'unavailable' };
 
   try {
     const data = await getJSON(`https://api.weather.gov/alerts/active?point=${loc.lat},${loc.lon}`);
@@ -183,13 +197,13 @@ export async function fetchNwsAlerts(locationKey) {
         instruction: p.instruction || '',
         sender: p.senderName || 'NWS',
       }));
-    const result = { status:'live', fetchedAt: Date.now(), alerts };
+    const result = { status: 'live', fetchedAt: Date.now(), alerts };
     alertCache[locationKey] = { result, ts: Date.now() };
     await writeJSON(lastGoodKey('alerts', locationKey), { fetchedAt: result.fetchedAt, alerts });
     return result;
-  } catch (e) {
+  } catch {
     const saved = await readJSON(lastGoodKey('alerts', locationKey));
-    if (saved) return { status:'cached', fetchedAt: saved.fetchedAt, alerts: (saved.alerts || []).filter(notExpired) };
-    return { status:'unavailable' };
+    if (saved) return { status: 'cached', fetchedAt: saved.fetchedAt, alerts: (saved.alerts || []).filter(notExpired) };
+    return { status: 'unavailable' };
   }
 }

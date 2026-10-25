@@ -6,12 +6,12 @@ import { fetchWithTimeout } from './http';
 // ── AQI CATEGORIES ────────────────────────────────────────────────────────
 // AirNow category name → app category key. Labels/messages live in i18n.js.
 const AQI_CATS = {
-  'Good':'good',
-  'Moderate':'moderate',
-  'Unhealthy for Sensitive Groups':'sensitive',
-  'Unhealthy':'unhealthy',
-  'Very Unhealthy':'veryUnhealthy',
-  'Hazardous':'hazardous',
+  Good: 'good',
+  Moderate: 'moderate',
+  'Unhealthy for Sensitive Groups': 'sensitive',
+  Unhealthy: 'unhealthy',
+  'Very Unhealthy': 'veryUnhealthy',
+  Hazardous: 'hazardous',
 };
 
 // EPA AQI breakpoints, used when AirNow omits the category.
@@ -26,8 +26,14 @@ export function aqiCategory(aqi) {
 
 // Sample readings for development only (DEMO_MODE). Never shown as real.
 const AQI_DEMO = {
-  'kirkland':38, 'sammamish':42, 'issaquah':55, 'maple-valley':61,
-  'wenatchee':118, 'leavenworth':143, 'ellensburg':97, 'cle-elum':152,
+  kirkland: 38,
+  sammamish: 42,
+  issaquah: 55,
+  'maple-valley': 61,
+  wenatchee: 118,
+  leavenworth: 143,
+  ellensburg: 97,
+  'cle-elum': 152,
 };
 
 // In-memory cache of live results; exported so screens can invalidate on
@@ -39,12 +45,17 @@ const AQI_CACHE_MS = 60 * 60 * 1000; // 1 hour
 // reading: { aqi, cat, parameter }
 async function offlineResult(locationKey, reason) {
   const saved = await readJSON(lastGoodKey('aqi', locationKey));
-  if (saved?.reading) return { status:'cached', reason, fetchedAt: saved.fetchedAt, reading: saved.reading };
+  if (saved?.reading) return { status: 'cached', reason, fetchedAt: saved.fetchedAt, reading: saved.reading };
   if (DEMO_MODE && AQI_DEMO[locationKey] != null) {
     const aqi = AQI_DEMO[locationKey];
-    return { status:'demo', reason, fetchedAt: Date.now(), reading: { aqi, cat: aqiCategory(aqi), parameter:'PM2.5' } };
+    return {
+      status: 'demo',
+      reason,
+      fetchedAt: Date.now(),
+      reading: { aqi, cat: aqiCategory(aqi), parameter: 'PM2.5' },
+    };
   }
-  return { status:'unavailable', reason };
+  return { status: 'unavailable', reason };
 }
 
 export async function fetchAQI(locationKey) {
@@ -52,21 +63,24 @@ export async function fetchAQI(locationKey) {
   if (cached && Date.now() - cached.ts < AQI_CACHE_MS) return cached.result;
 
   const loc = findLocation(locationKey);
-  if (!loc) return { status:'unavailable', reason:'error' };
+  if (!loc) return { status: 'unavailable', reason: 'error' };
   if (!AIRNOW_API_KEY) return offlineResult(locationKey, 'noKey');
 
   try {
-    const res = await fetchWithTimeout(`https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`);
+    const res = await fetchWithTimeout(
+      `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`,
+    );
     if (res.status === 401 || res.status === 403) return offlineResult(locationKey, 'badKey');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('bad payload');
     // No monitor reporting nearby is a real answer, not an outage.
-    if (data.length === 0) return { status:'unavailable', reason:'noData' };
+    if (data.length === 0) return { status: 'unavailable', reason: 'noData' };
 
-    const reading = data.find((d) => d.ParameterName === 'PM2.5') || data.find((d) => d.ParameterName === 'O3') || data[0];
+    const reading =
+      data.find((d) => d.ParameterName === 'PM2.5') || data.find((d) => d.ParameterName === 'O3') || data[0];
     const result = {
-      status:'live',
+      status: 'live',
       fetchedAt: Date.now(),
       reading: {
         aqi: reading.AQI,
@@ -77,7 +91,7 @@ export async function fetchAQI(locationKey) {
     aqiCache[locationKey] = { result, ts: Date.now() };
     await writeJSON(lastGoodKey('aqi', locationKey), { fetchedAt: result.fetchedAt, reading: result.reading });
     return result;
-  } catch (e) {
+  } catch {
     return offlineResult(locationKey, 'offline');
   }
 }

@@ -9,7 +9,9 @@ import { fetchWithTimeout } from './http';
 const NIFC_URL =
   'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/' +
   'WFIGS_Incident_Locations_Current/FeatureServer/0/query?' +
-  'where=' + encodeURIComponent("POOState='US-WA' AND IncidentTypeCategory<>'RX'") + '&' +
+  'where=' +
+  encodeURIComponent("POOState='US-WA' AND IncidentTypeCategory<>'RX'") +
+  '&' +
   'outFields=IncidentName,IncidentSize,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory,UniqueFireIdentifier,IrwinID&' +
   'orderByFields=IncidentSize+DESC&resultRecordCount=200&' +
   'f=json&returnGeometry=true&outSR=4326';
@@ -42,7 +44,8 @@ export function parseFire(f) {
     cause: a.FireCause || null,
     modifiedAt: a.ModifiedOnDateTime_dt || null,
     type: a.IncidentTypeCategory || null,
-    lat, lon,
+    lat,
+    lon,
   };
 }
 
@@ -50,7 +53,10 @@ export function parseFire(f) {
 export function withDistance(fires, loc) {
   if (!loc) return fires;
   return fires
-    .map((f) => ({ ...f, distanceMi: f.lat != null && f.lon != null ? distanceMiles(loc, { lat: f.lat, lon: f.lon }) : null }))
+    .map((f) => ({
+      ...f,
+      distanceMi: f.lat != null && f.lon != null ? distanceMiles(loc, { lat: f.lat, lon: f.lon }) : null,
+    }))
     .sort((a, b) => (a.distanceMi ?? Infinity) - (b.distanceMi ?? Infinity));
 }
 
@@ -67,14 +73,14 @@ export async function fetchLiveFires() {
     if (json.error || !Array.isArray(json.features)) throw new Error(json.error?.message || 'bad payload');
 
     const fires = json.features.map(parseFire).filter((f) => f.type !== 'RX');
-    const result = { fires, status:'live', fetchedAt: Date.now() };
+    const result = { fires, status: 'live', fetchedAt: Date.now() };
     fireCache.data = result;
     fireCache.ts = Date.now();
     await writeJSON(lastGoodKey('fires', 'wa'), { fetchedAt: result.fetchedAt, fires });
     return result;
   } catch (e) {
     const saved = await readJSON(lastGoodKey('fires', 'wa'));
-    if (saved?.fires) return { status:'cached', fetchedAt: saved.fetchedAt, fires: saved.fires };
-    return { fires: [], status:'unavailable', error: e.message };
+    if (saved?.fires) return { status: 'cached', fetchedAt: saved.fetchedAt, fires: saved.fires };
+    return { fires: [], status: 'unavailable', error: e.message };
   }
 }

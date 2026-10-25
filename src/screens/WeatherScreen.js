@@ -10,7 +10,13 @@ import AlertList from '../components/AlertList';
 import { DataSection, DataStatus } from '../components/StatusLine';
 
 // Risk level icon so the level is never conveyed by color alone.
-const RISK_ICON = { Extreme:'flame', High:'flame', Moderate:'flame-outline', Low:'leaf-outline', Minimal:'leaf-outline' };
+const RISK_ICON = {
+  Extreme: 'flame',
+  High: 'flame',
+  Moderate: 'flame-outline',
+  Low: 'leaf-outline',
+  Minimal: 'leaf-outline',
+};
 
 function Stat({ value, label }) {
   const theme = useTheme();
@@ -27,25 +33,36 @@ export default function WeatherScreen({ loc, setLoc }) {
   const t = useLang();
   const lang = useLangCode();
 
-  const [wx, setWx] = useState(null);
-  const [alerts, setAlerts] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Results remember their community, so switching communities shows the
+  // loading state without resetting state inside the effect.
+  const [wxRes, setWxRes] = useState({ loc: null, data: null });
+  const [alertRes, setAlertRes] = useState({ loc: null, data: null });
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (k) => {
-    setLoading(true); setAlerts(null);
-    const [w, a] = await Promise.all([fetchFireWeather(k), fetchNwsAlerts(k)]);
-    setWx(w); setAlerts(a); setLoading(false);
-  }, []);
+  const loading = wxRes.loc !== loc;
+  const wx = loading ? null : wxRes.data;
+  const alerts = alertRes.loc === loc ? alertRes.data : null;
+
+  const load = useCallback(
+    (k) =>
+      Promise.all([
+        fetchFireWeather(k).then((data) => setWxRes({ loc: k, data })),
+        fetchNwsAlerts(k).then((data) => setAlertRes({ loc: k, data })),
+      ]),
+    [],
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    delete wxCache[loc]; delete alertCache[loc];
-    const [w, a] = await Promise.all([fetchFireWeather(loc), fetchNwsAlerts(loc)]);
-    setWx(w); setAlerts(a); setRefreshing(false);
-  }, [loc]);
+    delete wxCache[loc];
+    delete alertCache[loc];
+    await load(loc);
+    setRefreshing(false);
+  }, [loc, load]);
 
-  useEffect(() => { load(loc); }, [loc, load]);
+  useEffect(() => {
+    load(loc);
+  }, [loc, load]);
 
   const periods = wx?.periods ?? [];
   const anyRHMissing = periods.some((p) => p.risk.rhMissing);
@@ -53,9 +70,11 @@ export default function WeatherScreen({ loc, setLoc }) {
 
   return (
     <ScrollView
-      style={{ flex:1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />
+      }
     >
       <LocPicker value={loc} onChange={setLoc} />
 
@@ -79,12 +98,12 @@ export default function WeatherScreen({ loc, setLoc }) {
           return (
             <View key={i} style={[s.wxCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={s.wxTop}>
-                <View style={{ flex:1 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={[s.wxDay, { color: theme.text }]}>{translateDayName(p.name, lang)}</Text>
                   <Text style={[s.wxFcast, { color: theme.textMid }]}>{translateForecast(p.forecast, lang)}</Text>
                 </View>
                 <View
-                  style={{ alignItems:'flex-end', flexShrink:0 }}
+                  style={{ alignItems: 'flex-end', flexShrink: 0 }}
                   accessible
                   accessibilityLabel={`${t.fireRiskEstimate}: ${level}`}
                 >
@@ -92,7 +111,7 @@ export default function WeatherScreen({ loc, setLoc }) {
                     <Ionicons name={RISK_ICON[p.risk.level]} size={13} color={theme[tone]} />
                     <Text style={[s.dangerTxt, { color: theme[tone] }]}>{level}</Text>
                   </View>
-                  <Text style={[s.wxStatKey, { color: theme.textMid, marginTop:3 }]}>{t.fireRiskEstimate}</Text>
+                  <Text style={[s.wxStatKey, { color: theme.textMid, marginTop: 3 }]}>{t.fireRiskEstimate}</Text>
                 </View>
               </View>
               <View style={[s.wxStats, { borderTopColor: theme.borderLight }]}>
@@ -106,12 +125,14 @@ export default function WeatherScreen({ loc, setLoc }) {
         })}
         <View style={[s.wxCredit, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[s.wxCreditTxt, { color: theme.textMid }]}>{t.nwsCredit}</Text>
-          <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNote}</Text>
-          {anyRHMissing && <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNoteNoRH}</Text>}
+          <Text style={[s.wxCreditTxt, { marginTop: 4, color: theme.textMid }]}>{t.weatherNote}</Text>
+          {anyRHMissing && (
+            <Text style={[s.wxCreditTxt, { marginTop: 4, color: theme.textMid }]}>{t.weatherNoteNoRH}</Text>
+          )}
           {wx && <DataStatus status={wx.status} fetchedAt={wx.fetchedAt} />}
         </View>
       </DataSection>
-      <View style={{ height:20 }} />
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }

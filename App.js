@@ -16,7 +16,7 @@ import GoBagScreen from './src/screens/GoBagScreen';
 import ScoreScreen from './src/screens/ScoreScreen';
 import PlanScreen from './src/screens/PlanScreen';
 
-const THEME_CYCLE = { system:'light', light:'dark', dark:'system' };
+const THEME_CYCLE = { system: 'light', light: 'dark', dark: 'system' };
 
 export default function App() {
   const systemScheme = useColorScheme();
@@ -57,7 +57,7 @@ export default function App() {
 
   if (!hydrated) {
     return (
-      <View style={{ flex:1, backgroundColor: theme.header, alignItems:'center', justifyContent:'center' }}>
+      <View style={{ flex: 1, backgroundColor: theme.header, alignItems: 'center', justifyContent: 'center' }}>
         <StatusBar style="light" />
         <ActivityIndicator color={theme.accent} size="large" />
       </View>
@@ -67,13 +67,22 @@ export default function App() {
   const navigate = (target) => (target === 'profile' ? setProfileOpen(true) : setTab(target));
   const editProfile = () => setProfileOpen(true);
 
-  const screens = [
-    ['home',    <HomeScreen loc={loc} setLoc={setLoc} actions={actions} setActions={setActions} />],
-    ['weather', <WeatherScreen loc={loc} setLoc={setLoc} />],
-    ['gobag',   <GoBagScreen checkedIds={checkedIds} setCheckedIds={setCheckedIds} profile={profile} onEditProfile={editProfile} />],
-    ['score',   <ScoreScreen checkedIds={checkedIds} profile={profile} actions={actions} loc={loc} onNavigate={navigate} />],
-    ['plan',    <PlanScreen loc={loc} setLoc={setLoc} profile={profile} setActions={setActions} onEditProfile={editProfile} />],
-  ];
+  const screens = {
+    home: <HomeScreen loc={loc} setLoc={setLoc} actions={actions} setActions={setActions} />,
+    weather: <WeatherScreen loc={loc} setLoc={setLoc} />,
+    gobag: (
+      <GoBagScreen
+        checkedIds={checkedIds}
+        setCheckedIds={setCheckedIds}
+        profile={profile}
+        onEditProfile={editProfile}
+      />
+    ),
+    score: <ScoreScreen checkedIds={checkedIds} profile={profile} actions={actions} loc={loc} onNavigate={navigate} />,
+    plan: (
+      <PlanScreen loc={loc} setLoc={setLoc} profile={profile} setActions={setActions} onEditProfile={editProfile} />
+    ),
+  };
 
   return (
     <SafeAreaProvider>
@@ -90,9 +99,11 @@ export default function App() {
               onCycleTheme={() => setThemePref((p) => THEME_CYCLE[p])}
             />
             {/* All tabs stay mounted so switching keeps data and scroll position. */}
-            <View style={{ flex:1, backgroundColor: theme.bg }}>
-              {screens.map(([key, el]) => (
-                <View key={key} style={{ flex:1, display: tab === key ? 'flex' : 'none' }}>{el}</View>
+            <View style={{ flex: 1, backgroundColor: theme.bg }}>
+              {Object.entries(screens).map(([key, el]) => (
+                <View key={key} style={{ flex: 1, display: tab === key ? 'flex' : 'none' }}>
+                  {el}
+                </View>
               ))}
             </View>
             <TabBar active={tab} onSelect={setTab} />
@@ -100,7 +111,10 @@ export default function App() {
           <ProfileSheet
             visible={profileOpen}
             profile={profile}
-            onSave={(p) => { setProfile({ ...p, savedAt: Date.now() }); setProfileOpen(false); }}
+            onSave={(p) => {
+              setProfile({ ...p, savedAt: Date.now() });
+              setProfileOpen(false);
+            }}
             onClose={() => setProfileOpen(false)}
           />
         </LangCtx.Provider>

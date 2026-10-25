@@ -1,63 +1,87 @@
 # WildfireReady — WA-08 Congressional App Challenge
 
-A bilingual wildfire preparedness app built for Washington's 8th Congressional District. WildfireReady gives residents of WA-08 — spanning King County's eastern communities, Chelan County, and Kittitas County — a single tool that answers the question every household in this fire-prone district faces each summer: *Am I ready, and if a fire starts tonight, what do I do?* The app delivers live air quality readings, a five-day fire weather forecast, a guided emergency go-bag checklist, a household readiness score, and location-specific evacuation routes drawn from official county emergency management plans. All content is available in English and Spanish, and every screen degrades gracefully to offline fallback data when connectivity is unavailable.
+A bilingual (English/Spanish) wildfire preparedness app for Washington's 8th Congressional District — eastern King County, Chelan County, and Kittitas County. It answers two questions every household here faces each summer: *Am I ready?* and *If a fire starts tonight, what do I do?*
+
+WildfireReady never invents emergency information. Live readings come from official sources; when a source is unreachable the app shows the last saved reading with its timestamp, or says the data is unavailable. Official warnings come only from the National Weather Service, and evacuation orders come only from your county — the app links you to the county's own alert sign-up.
 
 ---
 
 ## Features
 
 ### Now
-Live air quality index (AQI) for the selected community, sourced from the EPA AirNow API. Includes a color-coded banner that escalates from green (acceptable) to red (health emergency), a real-time active fire feed filtered to Washington state fires via the NIFC/WFIGS ArcGIS service, and a one-tap button to enroll in community emergency alerts.
+- **Official NWS alerts** for the selected community (Red Flag Warnings, Fire Weather Watches, Air Quality Alerts, Fire Warnings, Evacuation Immediate) with the official headline, expiry, and full text.
+- **Air quality** from EPA AirNow, shown on the official EPA AQI color scale with the category name and health guidance.
+- **Nearby wildfires** from NIFC/WFIGS, sorted by distance from the selected community, with "X mi from …" on each card and fires within 30 miles highlighted. Prescribed burns are excluded; unknown containment is shown as "Containment unknown".
+- **Map** of communities and the nearest fires. Tap a fire for name, acres, and distance, then "Details" to jump to its card.
+- **Official alert sign-up** for the community's county (ALERT King County, Chelan County, Kittitas County — all Everbridge). Users mark it done once they've signed up.
 
 ### Weather
-Five-day fire weather forecast from the National Weather Service, with a calculated fire danger level (Minimal through Extreme) for each day based on temperature, wind speed, and precipitation. Red Flag Warning conditions are surfaced prominently. Forecast terms are translated into Spanish using a curated NWS vocabulary map. Live vs. offline/demo data is indicated on every forecast card.
+Five-day NWS forecast with high temperature, lowest relative humidity, wind direction and speed, and peak gusts. Each day shows an **Estimated fire risk** (Minimal → Extreme). This is an app estimate, not an official rating:
+
+| Input (NWS) | Points |
+|---|---|
+| Forecast high: `(°F − 60) × 1.0` | 0–30 |
+| Lowest relative humidity (gridpoint data): `(60 − RH%) × 0.9` | 0–40 |
+| Strongest of sustained wind (upper bound of ranges like "10 to 20 mph") or 70% of peak gust: `mph × 1.5` | 0–30 |
+
+Levels: ≥75 Extreme, ≥55 High, ≥35 Moderate, ≥15 Low, otherwise Minimal. If humidity data is missing the estimate says so instead of guessing.
 
 ### Go Bag
-A categorized emergency go-bag checklist covering Essentials, Medical, Documents, and Pets. Items are drawn from FEMA and Red Cross guidance, localized for WA-08 communities. Each section tracks completion progress. The checklist feeds directly into the household readiness score.
+A checklist that adapts to the household profile: water, food, and N95 quantities scale with household size; pet, children, medication, and mobility sections appear only when they apply. Essentials come first.
 
 ### Score
-A 100-point household readiness score calculated from go-bag completion (50 pts), household profile completeness (30 pts), location selection (10 pts), and language configuration (10 pts). The score screen shows a grade, a breakdown by category with individual progress bars, and a prioritized list of the highest-impact improvements remaining.
+A 100-point readiness score earned only by real actions. A brand-new user scores 0.
+
+| Action | Points |
+|---|---|
+| Go-bag packed (share of items that apply to the household) | 45 |
+| Household profile saved | 15 |
+| Signed up for the county's official alerts (user confirms) | 15 |
+| Plan shared with family (from the Plan tab) | 10 |
+| Family meeting point set | 10 |
+| Out-of-area contact set (name and phone) | 5 |
+
+Grades: A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, F below. Each "What to improve" item opens the screen where it can be fixed.
 
 ### Plan
-The emergency action hub. Shows Washington State's three-level evacuation system (Level 1 GET READY / Level 2 GET SET / Level 3 GO NOW) with plain-language descriptions. Displays three location-specific evacuation routes — primary, alternate, and last resort — with estimated drive times and turn-by-turn corridor guidance. Shows the county emergency management contact and the 2-1-1 WA Disaster Helpline for the selected community. Includes a shelter disclaimer and a one-tap share button so families can send their plan to each other before an incident occurs.
+- Official evacuation and fire alerts for the community.
+- The county's alert sign-up, evacuation-level address lookup (Chelan and Kittitas), and emergency management page.
+- **My household plan**: meeting point, out-of-area contact (with a call button), and household size from the profile.
+- Washington's three evacuation levels (GET READY / GET SET / GO NOW).
+- Evacuation routes, shelters, and emergency contacts, each tagged **Verified <date>** (with a link to the source) or **Unverified**.
+- Share the plan as text, or print / save it as a PDF.
+
+### Household profile
+Adults, children, pets, prescription medications, mobility/access needs, someone 65+, family meeting point, and out-of-area contact. Stored only on the device.
 
 ---
 
-## Data Sources
+## Data sources
 
-| Source | What it provides |
-|---|---|
-| **EPA AirNow API** | Real-time AQI readings by ZIP code for all WA-08 communities |
-| **NOAA / National Weather Service** | Five-day fire weather forecast via the NWS `api.weather.gov` points endpoint |
-| **NIFC / WFIGS ArcGIS** | Current wildland fire incident locations filtered to Washington state (`POOState = 'US-WA'`), updated daily |
-| **King County Emergency Management** | Evacuation routes, shelter locations, and Alert King County enrollment guidance for Kirkland, Sammamish, Issaquah, and Maple Valley |
-| **Chelan County Emergency Management** | Evacuation corridors, shelter locations, and Chelan County Sheriff contact for Wenatchee and Leavenworth |
-| **Kittitas County Emergency Management** | Evacuation routes, shelter locations, and Kittitas County EM contact for Ellensburg and Cle Elum |
+| Source | Endpoint | Used for |
+|---|---|---|
+| EPA AirNow | `airnowapi.org/aq/observation/zipCode/current/` | AQI by ZIP code |
+| NOAA NWS | `api.weather.gov/points/{lat},{lon}` → forecast + `forecastGridData` | Forecast, humidity, gusts |
+| NOAA NWS alerts | `api.weather.gov/alerts/active?point={lat},{lon}` | Official warnings, watches, advisories |
+| NIFC WFIGS | `services3.arcgis.com/T4QMspbfLg3qTGWY/.../WFIGS_Incident_Locations_Current/FeatureServer/0` | Current Washington wildfire incidents |
+| OpenStreetMap | `tile.openstreetmap.org` (via Leaflet 1.9.4 in a WebView) | Map tiles (dark mode inverts them with CSS) |
+| County emergency management | King, Chelan, Kittitas county websites | Contacts, alert sign-up, evacuation-level lookups |
 
-### A note on evacuation routes
-
-All evacuation routes in the Plan tab were derived from official county emergency management plans and public-facing evacuation guidance, then cross-referenced against confirmed shelter activation histories from past fire events in the district. Route data for King County communities was reviewed by King County Office of Emergency Management, whose feedback directly shaped the app's approach to evacuation guidance and resulted in the removal of several inaccurate street-level directions. (including the 2017 Jolly Mountain Fire and the 2025 Lambert Road Fire). Routes for communities with a single egress road — Icicle Canyon in Leavenworth and the SR-903 corridor in Roslyn/upper Cle Elum — carry a prominent "LEAVE EARLY" designation and are identified by county EM as the district's highest-priority evacuation risks. Shelter locations are labeled with a disclaimer to confirm activation status via WA-Alert or 2-1-1 on the day of any evacuation, as shelter assignments change event-to-event.
+**Offline behavior.** The last successful response from each source is saved per community. Offline, the app shows that data with a "Last updated <date/time>" label and an offline banner; with nothing saved it shows an "unavailable" state. Every request times out after 15 seconds. Sample data exists only for development (`EXPO_PUBLIC_DEMO_MODE=1` in a dev build) and is always labeled **DEMO**.
 
 ---
 
-## Tech Stack
+## Evacuation data and verification
 
-- **React Native 0.85.3** with **React 19.2.3**
-- **Expo SDK 56** (`~56.0.12`) — managed workflow
-- **react-native-safe-area-context** for notch/home-bar handling across iOS and Android
-- React Context API for theme (light/dark) and language (EN/ES) state
-- No third-party state management or navigation libraries — five-tab layout is a hand-rolled context-driven switcher optimized for single-screen simplicity
+Routes, shelters, contacts, and county links live in `src/data/emergency.js`. Each record has a `source` URL and a `lastVerified` date. A record is marked verified **only** when an official government source confirms it; everything else is shown as unverified in the app, and verifications older than about six months are flagged for re-checking.
 
-### Live APIs
-- EPA AirNow — `https://www.airnowapi.org/aq/observation/zipCode/current/`
-- NOAA NWS — `https://api.weather.gov/points/{lat},{lon}` → forecast + gridpoint data (humidity, gusts)
-- NOAA NWS alerts — `https://api.weather.gov/alerts/active?point={lat},{lon}` (Red Flag Warnings, Fire Weather Watches, Air Quality Alerts)
-- NIFC WFIGS — `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query`
+[VERIFY.md](VERIFY.md) lists what has been verified (with sources), what was corrected, and what still needs an official source. As of the last review, the county contacts, alert sign-ups, evacuation lookups, and the Kittitas Valley Event Center's use as an animal shelter are verified; the evacuation routes, drive times, and people shelters are not.
 
-The last successful response for each source and community is saved on the device. Offline, the app shows that saved data labeled "Last updated <date/time>"; if nothing is saved it shows an "unavailable" state. It never substitutes made-up readings.
+To verify a record: find the claim on an official county, city, WSDOT, or Red Cross page, set `source` and `lastVerified` in `emergency.js`, and remove the item from VERIFY.md.
 
-### Map
-The embedded map is rendered via **react-native-webview** with a **Leaflet.js** map (v1.9.4) loaded from the unpkg CDN. Light mode uses OpenStreetMap tiles (`tile.openstreetmap.org`); dark mode uses CARTO dark tiles (`basemaps.cartocdn.com/dark_all`). No API key or billing account is required for either tile provider.
+Earlier in development, King County Office of Emergency Management gave feedback on the King County route data, which led to removing several street-level directions. That review is not a substitute for per-record verification above.
+
+Shelter assignments change with every event. The app always tells users to confirm open shelters through their county's alerts or 2-1-1.
 
 ---
 
@@ -65,53 +89,77 @@ The embedded map is rendered via **react-native-webview** with a **Leaflet.js** 
 
 ```bash
 npm install
+cp .env.example .env.local   # then fill in the values
 npx expo start
 ```
 
-Scan the QR code with the Expo Go app (iOS or Android) or press `i` / `a` to open in a simulator.
-
-To run on a physical device without Expo Go:
-
-```bash
-npx expo run:ios   # requires Xcode
-npx expo run:android   # requires Android Studio
-```
+Scan the QR code with Expo Go, or press `a` for an Android emulator / `i` for the iOS simulator (macOS only).
 
 ### Environment variables
 
-Copy `.env.example` to `.env.local` (git-ignored) and fill it in:
+| Variable | Purpose |
+|---|---|
+| `EXPO_PUBLIC_AIRNOW_API_KEY` | Free key from [airnowapi.org](https://docs.airnowapi.org/account/request/). Without it the app shows "AQI unavailable: no API key"; a rejected key shows "API key rejected". |
+| `EXPO_PUBLIC_NWS_UA` | Identifying User-Agent with contact info, per NOAA's API policy. |
+| `EXPO_PUBLIC_DEMO_MODE` | `1` shows labeled DEMO data in development builds when live sources fail. Ignored in production. |
 
-```bash
-EXPO_PUBLIC_AIRNOW_API_KEY=your_airnow_key
-EXPO_PUBLIC_NWS_UA=WildfireReady (you@example.com)
-EXPO_PUBLIC_DEMO_MODE=0
+Restart `npx expo start` after changing them.
+
+> **`EXPO_PUBLIC_*` values ship in the client bundle.** Expo inlines them at build time, so anyone with the app can read them. Only use keys that are safe to be public (the free AirNow tier). For anything sensitive, proxy requests through a small backend.
+
+### Scripts
+
+| Command | What it does |
+|---|---|
+| `npm start` | Expo dev server |
+| `npm run android` / `npm run ios` | Dev server + open on a device or emulator |
+| `npm test` | Jest (jest-expo) unit tests |
+| `npm run lint` | ESLint (`eslint-config-expo`) with Prettier |
+| `npm run format` | Prettier write |
+
+The app is native-only (iOS and Android); the map uses `react-native-webview`, which has no web implementation.
+
+---
+
+## Tech stack
+
+- Expo SDK 56, React Native 0.85, React 19.2
+- `@react-native-async-storage/async-storage` — versioned, migrated app state and offline caches
+- `react-native-safe-area-context`, `expo-status-bar`, `@expo/vector-icons`
+- `expo-location` — one-time "Use my location" to pick the nearest community (not stored)
+- `expo-print` — printable plan
+- `react-native-webview` + Leaflet — map
+- React Context for theme (Auto/Light/Dark) and language; no navigation library — five always-mounted tabs
+
+### Project layout
+
+```
+App.js                    state, persistence, tabs
+src/i18n.js               all EN/ES strings, locale-aware dates, NWS phrase translation
+src/theme.js              color tokens (light/dark, semantic, EPA AQI)
+src/styles.js             layout only — no colors
+src/data/                 locations, emergency data, go-bag items, profile defaults
+src/services/             AirNow, NWS, NIFC, scoring, persistence, geo, printable plan
+src/components/           header, tab bar, map, alerts, shared data-state component, sheets
+src/screens/              Now, Weather, Go Bag, Score, Plan
+__tests__/                Jest tests
 ```
 
-Restart `npx expo start` after changing these. If the AirNow key is missing the app still runs and shows "AQI unavailable: no API key".
-
-> **`EXPO_PUBLIC_*` values ship in the client bundle.** Expo inlines them at build time, so anyone with the app can read them. Only use keys that are safe to be public (the free AirNow tier). For anything sensitive, proxy requests through a small backend instead.
-
-`EXPO_PUBLIC_DEMO_MODE=1` only works in development builds (`__DEV__`). It shows sample readings when live sources fail and nothing is saved, always with a red **DEMO** label.
-
-AirNow API keys are free at [airnowapi.org](https://docs.airnowapi.org/). The NWS API requires no key — only a User-Agent string per NOAA's usage policy. The NIFC ArcGIS endpoint is fully public with no authentication required.
-
 ---
 
-## District Coverage
+## District coverage
 
-WildfireReady includes curated data for eight communities across the three WA-08 counties with the highest wildfire exposure:
-
-| Community | County | Notable risk |
+| Community | County | Notes |
 |---|---|---|
 | Sammamish | King | WUI interface, Tiger Mountain proximity |
-| Issaquah | King | Primary evacuation corridor per 2025 ETS |
-| Maple Valley | King | Green River Gorge fire corridor |
-| Kirkland | King | Near WA-01/WA-08 boundary (98033) |
-| Wenatchee | Chelan | Historically high fire season AQI |
-| Leavenworth | Chelan | Icicle Canyon single-exit risk |
-| Ellensburg | Kittitas | Eastern Cascades fire weather exposure |
-| Cle Elum | Kittitas | SR-903/Roslyn single-exit risk |
+| Issaquah | King | City published a 2025 wildfire evacuation time study |
+| Maple Valley | King | Green River Gorge area |
+| Kirkland | King | Near the WA-01/WA-08 boundary (98033) |
+| Wenatchee | Chelan | US-2 over Stevens Pass or US-97 over Blewett Pass |
+| Leavenworth | Chelan | Icicle Canyon single-exit area |
+| Ellensburg | Kittitas | Eastern Cascades fire weather |
+| Cle Elum | Kittitas | SR-903 is the only paved road out of Roslyn/Ronald |
 
 ---
 
-*Built for the WA-08 Congressional App Challenge. Data is provided for informational purposes. Always follow instructions from local emergency management and law enforcement during an active evacuation.*
+*Built for the WA-08 Congressional App Challenge. Information is provided for preparedness only. Always follow instructions from local emergency management and law enforcement during an active evacuation.*

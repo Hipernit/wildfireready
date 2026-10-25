@@ -28,15 +28,19 @@ describe('calcScore', () => {
     const r = calcScore(base());
     expect(r.total).toBe(0);
     expect(r.grade).toBe('F');
-    expect(r.fixes.map((f) => f.key)).toEqual(expect.arrayContaining(['gobag', 'profile', 'alerts', 'shared', 'meeting', 'contact']));
+    expect(r.fixes.map((f) => f.key)).toEqual(
+      expect.arrayContaining(['gobag', 'profile', 'alerts', 'shared', 'meeting', 'contact']),
+    );
   });
 
   test('everything done scores 100 and an A with no fixes', () => {
-    const r = calcScore(base({
-      checkedIds: new Set(applicableIds(completeProfile)),
-      profile: completeProfile,
-      actions: { alertsCounties: ['King'], planSharedAt: 1 },
-    }));
+    const r = calcScore(
+      base({
+        checkedIds: new Set(applicableIds(completeProfile)),
+        profile: completeProfile,
+        actions: { alertsCounties: ['King'], planSharedAt: 1 },
+      }),
+    );
     expect(r.total).toBe(100);
     expect(r.grade).toBe('A');
     expect(r.fixes).toEqual([]);
@@ -46,7 +50,9 @@ describe('calcScore', () => {
     const ids = applicableIds(DEFAULT_PROFILE);
     const half = new Set(ids.slice(0, Math.floor(ids.length / 2)));
     const r = calcScore(base({ checkedIds: half }));
-    expect(r.categories.find((c) => c.key === 'gobag').score).toBe(Math.round((half.size / ids.length) * SCORE_WEIGHTS.gobag));
+    expect(r.categories.find((c) => c.key === 'gobag').score).toBe(
+      Math.round((half.size / ids.length) * SCORE_WEIGHTS.gobag),
+    );
   });
 
   test('pet items do not count against a household with no pets', () => {
@@ -65,7 +71,9 @@ describe('calcScore', () => {
   test('alerts only count for the selected community county', () => {
     const actions = { ...DEFAULT_ACTIONS, alertsCounties: ['Chelan'] };
     expect(calcScore(base({ actions, county: 'King' })).categories.find((c) => c.key === 'alerts').score).toBe(0);
-    expect(calcScore(base({ actions, county: 'Chelan' })).categories.find((c) => c.key === 'alerts').score).toBe(SCORE_WEIGHTS.alerts);
+    expect(calcScore(base({ actions, county: 'Chelan' })).categories.find((c) => c.key === 'alerts').score).toBe(
+      SCORE_WEIGHTS.alerts,
+    );
   });
 
   test('blank meeting point and half-filled contact earn nothing', () => {
