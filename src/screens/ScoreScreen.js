@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Share } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { s } from '../styles';
 import { useTheme } from '../theme';
 import { useLang, fmt } from '../i18n';
@@ -19,18 +20,22 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
   return (
     <ScrollView style={{ flex:1, backgroundColor: theme.bg }} showsVerticalScrollIndicator={false}>
       <View style={[s.scoreHero, { backgroundColor: theme.darkCard }]}>
-        <Text style={s.scoreTitle}>{t.scoreTitle}</Text>
-        <Text style={s.scoreSubtitle}>{t.scoreSubtitle}</Text>
+        <Text style={[s.scoreTitle, { color: theme.darkCardText }]} accessibilityRole="header">{t.scoreTitle}</Text>
+        <Text style={[s.scoreSubtitle, { color: theme.darkCardSub }]}>{t.scoreSubtitle}</Text>
         <View style={s.scoreCircleWrap}>
-          <View style={[s.scoreCircle, { borderColor: gradeColor }]}>
-            <Text style={[s.scoreNum, { color: gradeColor }]}>{score.total}</Text>
-            <Text style={s.scoreOfTxt}>{t.scoreOf}</Text>
+          <View
+            style={[s.scoreCircle, { borderColor: gradeColor, backgroundColor: theme.darkCardFill }]}
+            accessible
+            accessibilityLabel={`${score.total} ${t.scoreOf}, ${score.grade}`}
+          >
+            <Text style={[s.scoreNum, { color: theme.darkCardText }]}>{score.total}</Text>
+            <Text style={[s.scoreOfTxt, { color: theme.darkCardSub }]}>{t.scoreOf}</Text>
             <Text style={[s.scoreGrade, { color: gradeColor }]}>{score.grade}</Text>
           </View>
         </View>
-        <Text style={s.scoreGradeMsg}>{t.scoreGrades[score.grade]}</Text>
-        <TouchableOpacity style={s.shareScoreBtn} onPress={share}>
-          <Text style={s.shareScoreBtnTxt}>{t.shareScore}</Text>
+        <Text style={[s.scoreGradeMsg, { color: theme.darkCardSub }]}>{t.scoreGrades[score.grade]}</Text>
+        <TouchableOpacity style={[s.shareScoreBtn, { backgroundColor: theme.accent }]} onPress={share} accessibilityRole="button">
+          <Text style={[s.shareScoreBtnTxt, { color: theme.onAccent }]}>{t.shareScore}</Text>
         </TouchableOpacity>
       </View>
 
@@ -45,10 +50,10 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
                 accessibilityRole="button"
                 style={[s.fixRow, i < score.fixes.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }]]}
               >
-                <Text style={s.fixIcon}>→</Text>
+                <Ionicons name="arrow-forward-circle" size={22} color={theme.accentText} />
                 <Text style={[s.fixTxt, { color: theme.text }]}>{t.fixItems[fix.key]}</Text>
                 <Text style={{ fontSize:12, fontWeight:'700', color: theme.success }}>{fmt(t.fixGain, { n: fix.gain })}</Text>
-                <Text style={{ fontSize:18, color: theme.textLight }}>›</Text>
+                <Ionicons name="chevron-forward" size={18} color={theme.textMid} />
               </TouchableOpacity>
             ))}
           </View>
@@ -63,7 +68,7 @@ export default function ScoreScreen({ checkedIds, profile, actions, loc, onNavig
             <View key={cat.key} style={[s.catRow, i < score.categories.length - 1 && [s.catBorder, { borderBottomColor: theme.borderLight }]]}>
               <View style={{ flex:1 }}>
                 <Text style={[s.catName, { color: theme.text }]}>{t.categories[cat.key]}</Text>
-                <Text style={[s.catDesc, { color: theme.textLight }]}>{t.catDescs[cat.key]}</Text>
+                <Text style={[s.catDesc, { color: theme.textMid }]}>{t.catDescs[cat.key]}</Text>
                 <View style={[s.catTrack, { backgroundColor: theme.borderLight }]}>
                   <View style={[s.catFill, { width:`${cat.pct}%`, backgroundColor: fill }]} />
                 </View>

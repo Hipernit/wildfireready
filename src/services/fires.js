@@ -1,5 +1,6 @@
 import { readJSON, writeJSON, lastGoodKey } from './storage';
 import { distanceMiles } from './geo';
+import { fetchWithTimeout } from './http';
 
 // ── LIVE FIRE DATA ────────────────────────────────────────────────────────
 // NIFC WFIGS Current Incident Locations — public, no key needed. (The older
@@ -58,7 +59,7 @@ export async function fetchLiveFires() {
   if (fireCache.data && Date.now() - fireCache.ts < FIRE_CACHE_MS) return fireCache.data;
 
   try {
-    const res = await fetch(NIFC_URL);
+    const res = await fetchWithTimeout(NIFC_URL);
     if (!res.ok) throw new Error(`NIFC HTTP ${res.status}`);
     const json = await res.json();
     // ArcGIS reports errors as HTTP 200 with an `error` body — never treat

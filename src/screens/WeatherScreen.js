@@ -1,22 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { s } from '../styles';
-import { useTheme, useIsDark, ACCENT } from '../theme';
-import { useLang, useLangCode, translateDayName, translateForecast } from '../i18n';
+import { useTheme, RISK_TONE } from '../theme';
+import { useLang, useLangCode, translateDayName, translateForecast, translateWind } from '../i18n';
 import { fetchFireWeather, wxCache, fetchNwsAlerts, alertCache } from '../services/weather';
 import LocPicker from '../components/LocPicker';
 import AlertList from '../components/AlertList';
-import { LoadingCard, DataStatus, UnavailableCard } from '../components/StatusLine';
+import { DataSection, DataStatus } from '../components/StatusLine';
 
-const DANGER_DARK_BG = {
-  Extreme: 'rgba(123,0,0,0.25)',   High:    'rgba(192,57,43,0.2)',
-  Moderate:'rgba(192,122,0,0.2)',  Low:     'rgba(46,125,94,0.2)',
-  Minimal: 'rgba(28,110,164,0.2)',
-};
+// Risk level icon so the level is never conveyed by color alone.
+const RISK_ICON = { Extreme:'flame', High:'flame', Moderate:'flame-outline', Low:'leaf-outline', Minimal:'leaf-outline' };
+
+function Stat({ value, label }) {
+  const theme = useTheme();
+  return (
+    <View style={s.wxStat}>
+      <Text style={[s.wxStatVal, { color: theme.text }]}>{value}</Text>
+      <Text style={[s.wxStatKey, { color: theme.textMid }]}>{label}</Text>
+    </View>
+  );
+}
 
 export default function WeatherScreen({ loc, setLoc }) {
   const theme = useTheme();
-  const isDark = useIsDark();
   const t = useLang();
   const lang = useLangCode();
 
@@ -42,64 +49,68 @@ export default function WeatherScreen({ loc, setLoc }) {
 
   const periods = wx?.periods ?? [];
   const anyRHMissing = periods.some((p) => p.risk.rhMissing);
+  const dash = t.noValue;
 
   return (
     <ScrollView
       style={{ flex:1, backgroundColor: theme.bg }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={ACCENT} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
       <LocPicker value={loc} onChange={setLoc} />
 
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.officialAlerts}</Text>
+      <Text style={[s.secLabel, { color: theme.textMid }]}>{t.officialAlerts}</Text>
       <AlertList result={alerts} />
 
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.fireWeather}</Text>
-      {loading ? (
-        <LoadingCard label={t.fetchingWeather} height={100} />
-      ) : periods.length === 0 ? (
-        <UnavailableCard title={t.wxUnavailable} msg={t.wxUnavailableMsg} />
-      ) : (
-        <>
-          {periods.map((p, i) => (
+      <Text style={[s.secLabel, { color: theme.textMid }]}>{t.fireWeather}</Text>
+      <DataSection
+        loading={loading}
+        loadingLabel={t.fetchingWeather}
+        result={wx}
+        unavailableTitle={t.wxUnavailable}
+        unavailableMsg={t.wxUnavailableMsg}
+        isEmpty={periods.length === 0}
+        emptyMsg={t.wxUnavailableMsg}
+      >
+        {periods.map((p, i) => {
+          const tone = RISK_TONE[p.risk.level];
+          const level = t.dangerLevels[p.risk.level];
+          const wind = [p.windDir, p.wind].filter(Boolean).join(' ');
+          return (
             <View key={i} style={[s.wxCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={s.wxTop}>
                 <View style={{ flex:1 }}>
                   <Text style={[s.wxDay, { color: theme.text }]}>{translateDayName(p.name, lang)}</Text>
-                  <Text style={[s.wxFcast, { color: theme.textLight }]}>{translateForecast(p.forecast, lang)}</Text>
+                  <Text style={[s.wxFcast, { color: theme.textMid }]}>{translateForecast(p.forecast, lang)}</Text>
                 </View>
-                <View style={{ alignItems:'flex-end' }}>
-                  <View style={[s.dangerBadge, { backgroundColor: isDark ? (DANGER_DARK_BG[p.risk.level] ?? DANGER_DARK_BG.Moderate) : p.risk.bg }]}>
-                    <Text style={[s.dangerDot, { color: p.risk.color }]}>{p.risk.dot}</Text>
-                    <Text style={[s.dangerTxt, { color: p.risk.color }]}>{t.dangerLevels[p.risk.level]}</Text>
+                <View
+                  style={{ alignItems:'flex-end', flexShrink:0 }}
+                  accessible
+                  accessibilityLabel={`${t.fireRiskEstimate}: ${level}`}
+                >
+                  <View style={[s.dangerBadge, { backgroundColor: theme[`${tone}Bg`] }]}>
+                    <Ionicons name={RISK_ICON[p.risk.level]} size={13} color={theme[tone]} />
+                    <Text style={[s.dangerTxt, { color: theme[tone] }]}>{level}</Text>
                   </View>
-                  <Text style={[s.wxStatKey, { color: theme.textLight, marginTop:3 }]}>{t.fireRiskEstimate}</Text>
+                  <Text style={[s.wxStatKey, { color: theme.textMid, marginTop:3 }]}>{t.fireRiskEstimate}</Text>
                 </View>
               </View>
               <View style={[s.wxStats, { borderTopColor: theme.borderLight }]}>
-                <View style={s.wxStat}>
-                  <Text style={[s.wxStatVal, { color: theme.text }]}>{p.temp}°F</Text>
-                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.temp}</Text>
-                </View>
-                <View style={s.wxStat}>
-                  <Text style={[s.wxStatVal, { color: theme.text }]}>{p.wind}</Text>
-                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.wind}</Text>
-                </View>
-                <View style={[s.wxStat, { flex:2 }]}>
-                  <Text style={[s.wxStatVal, { color: theme.text }]} numberOfLines={1}>{translateForecast(p.forecast, lang)}</Text>
-                  <Text style={[s.wxStatKey, { color: theme.textLight }]}>{t.conditions}</Text>
-                </View>
+                <Stat value={`${p.temp}°F`} label={t.temp} />
+                <Stat value={p.minRH != null ? `${p.minRH}%` : dash} label={t.humidity} />
+                <Stat value={translateWind(wind, lang) || dash} label={t.wind} />
+                <Stat value={p.gustMph != null ? `${p.gustMph} mph` : dash} label={t.gusts} />
               </View>
             </View>
-          ))}
-          <View style={[s.wxCredit, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[s.wxCreditTxt, { color: theme.textLight }]}>{t.nwsCredit}</Text>
-            <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNote}</Text>
-            {anyRHMissing && <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNoteNoRH}</Text>}
-            <DataStatus status={wx.status} fetchedAt={wx.fetchedAt} />
-          </View>
-        </>
-      )}
+          );
+        })}
+        <View style={[s.wxCredit, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[s.wxCreditTxt, { color: theme.textMid }]}>{t.nwsCredit}</Text>
+          <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNote}</Text>
+          {anyRHMissing && <Text style={[s.wxCreditTxt, { marginTop:4, color: theme.textMid }]}>{t.weatherNoteNoRH}</Text>}
+          {wx && <DataStatus status={wx.status} fetchedAt={wx.fetchedAt} />}
+        </View>
+      </DataSection>
       <View style={{ height:20 }} />
     </ScrollView>
   );

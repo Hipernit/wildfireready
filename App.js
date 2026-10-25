@@ -3,7 +3,7 @@ import { View, ActivityIndicator, useColorScheme } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { s } from './src/styles';
-import { THEMES, ThemeCtx, ACCENT } from './src/theme';
+import { THEMES, ThemeCtx } from './src/theme';
 import { LangCtx } from './src/i18n';
 import { readJSON, writeJSON } from './src/services/storage';
 import { STORAGE_KEY, DEFAULT_STATE, migrateState, serializeState } from './src/services/persist';
@@ -59,7 +59,7 @@ export default function App() {
     return (
       <View style={{ flex:1, backgroundColor: theme.header, alignItems:'center', justifyContent:'center' }}>
         <StatusBar style="light" />
-        <ActivityIndicator color={ACCENT} size="large" />
+        <ActivityIndicator color={theme.accent} size="large" />
       </View>
     );
   }
@@ -81,7 +81,8 @@ export default function App() {
         <LangCtx.Provider value={lang}>
           {/* Header is dark in both themes, so status-bar content is always light. */}
           <StatusBar style="light" />
-          <SafeAreaView style={[s.safe, { backgroundColor: theme.header }]}>
+          {/* Bottom inset is applied by TabBar so it isn't padded twice. */}
+          <SafeAreaView style={[s.safe, { backgroundColor: theme.header }]} edges={['top', 'left', 'right']}>
             <Header
               themePref={themePref}
               loc={loc}

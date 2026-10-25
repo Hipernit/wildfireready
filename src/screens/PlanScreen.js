@@ -1,41 +1,70 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Share, Linking, RefreshControl, Alert } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Print from 'expo-print';
 import { s } from '../styles';
-import { useTheme, ACCENT } from '../theme';
+import { useTheme } from '../theme';
 import { useLang, useLangCode, fmt, formatDate } from '../i18n';
 import { getRoutes, getContacts, EVAC_ROUTES, COUNTY_RESOURCES } from '../data/emergency';
 import { findLocation } from '../data/locations';
+import { fetchNwsAlerts, alertCache } from '../services/weather';
+import { buildPlanHtml } from '../services/planExport';
 import LocPicker from '../components/LocPicker';
+import AlertList from '../components/AlertList';
 
 const openUrl = (url) => Linking.openURL(url).catch(() => {});
+const call = (number) => Linking.openURL(`tel:${number.replace(/[^0-9+]/g, '')}`).catch(() => {});
 
-// "Verified Oct 24, 2026" (tappable → source) or "Unverified — confirm…".
+// Verification older than this is flagged as stale.
+const VERIFY_STALE_MS = 182 * 24 * 60 * 60 * 1000;
+
+// "Verified Oct 24, 2026" (tappable → source), "Unverified — confirm…", or a
+// stale warning when the verification is more than ~6 months old.
 function VerifyTag({ record }) {
   const theme = useTheme();
   const t = useLang();
   const lang = useLangCode();
   const verified = !!record.lastVerified;
-  const label = verified ? fmt(t.verifiedOn, { date: formatDate(record.lastVerified, lang) }) : t.unverified;
-  const fg = verified ? theme.success : theme.warning;
+  const [y, m, d] = (record.lastVerified || '').split('-').map(Number);
+  const stale = verified && Date.now() - new Date(y, m - 1, d).getTime() > VERIFY_STALE_MS;
+  const label = !verified ? t.unverified : stale ? t.verifyStale : fmt(t.verifiedOn, { date: formatDate(record.lastVerified, lang) });
+  const tone = verified && !stale ? 'success' : 'warning';
   const body = (
-    <View style={[s.tag, { backgroundColor: verified ? theme.successBg : theme.warningBg, alignSelf:'flex-start', marginTop:6 }]}>
-      <Text style={[s.tagTxt, { color: fg }]}>{verified ? '✓ ' : '? '}{label}{verified && record.source ? ` · ${t.viewSource} ›` : ''}</Text>
+    <View style={[s.tag, { backgroundColor: theme[`${tone}Bg`], alignSelf:'flex-start', marginTop:6, flexDirection:'row', alignItems:'center', gap:4 }]}>
+      <Ionicons name={tone === 'success' ? 'shield-checkmark' : 'help-circle'} size={12} color={theme[tone]} />
+      <Text style={[s.tagTxt, { color: theme[tone], flexShrink:1 }]}>{label}{verified && record.source ? ` · ${t.viewSource} ›` : ''}</Text>
     </View>
   );
   if (!verified || !record.source) return body;
-  return <TouchableOpacity onPress={() => openUrl(record.source)} accessibilityRole="link">{body}</TouchableOpacity>;
+  return <TouchableOpacity onPress={() => openUrl(record.source)} accessibilityRole="link" style={{ alignSelf:'flex-start' }}>{body}</TouchableOpacity>;
 }
 
-export default function PlanScreen({ loc, setLoc, setActions }) {
+export default function PlanScreen({ loc, setLoc, profile, setActions, onEditProfile }) {
   const theme = useTheme();
   const t = useLang();
   const lang = useLangCode();
+
+  const [alerts, setAlerts] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    setAlerts(null);
+    fetchNwsAlerts(loc).then(setAlerts);
+  }, [loc]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    delete alertCache[loc];
+    setAlerts(await fetchNwsAlerts(loc));
+    setRefreshing(false);
+  }, [loc]);
 
   const routes = getRoutes(loc, lang);
   const contacts = getContacts(loc, lang);
   const location = findLocation(loc);
   const county = location ? COUNTY_RESOURCES[location.county] : null;
   const hasOfficialRoutes = !!EVAC_ROUTES[loc];
+  const hasHousehold = !!(profile.meetingPoint?.trim() || profile.contactName?.trim() || profile.contactPhone?.trim());
 
   const routeTime = (r) => {
     if (r.flag === 'leaveEarly') return t.leaveEarly;
@@ -51,16 +80,27 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
       return `${r.num}. ${r.name}${time ? ` (${time})` : ''}\n${r.desc}${shelters ? `\n${shelters}` : ''}`;
     }).join('\n\n');
     const contactText = contacts.map((c) => `${c.name}: ${c.detail}`).join('\n');
+    const householdText = hasHousehold
+      ? `${t.householdPlan}:\n${t.meetingPoint}: ${profile.meetingPoint?.trim() || t.notSet}\n${t.outOfAreaContact}: ${[profile.contactName, profile.contactPhone].filter((v) => v?.trim()).join(' · ') || t.notSet}\n\n`
+      : '';
     const alertText = county ? `\n\n${fmt(t.signUpAlerts, { name: county.alertName })}: ${county.alertUrl}` : '';
     const res = await Share.share({
-      message: `${t.shareMsg} ${location?.label}\n\n${t.evacRoutes}:\n${routeText}\n\n${t.shelterDisclaimer}\n\n${t.emergencyContacts}:\n${contactText}${alertText}${t.shareFooter}`,
+      message: `${t.shareMsg} ${location?.label}\n\n${householdText}${t.evacRoutes}:\n${routeText}\n\n${t.shelterDisclaimer}\n\n${t.emergencyContacts}:\n${contactText}${alertText}${t.shareFooter}`,
     }).catch(() => null);
     // Android always reports sharedAction; iOS reports dismissedAction if cancelled.
     if (res?.action === Share.sharedAction) setActions((a) => ({ ...a, planSharedAt: Date.now() }));
   };
 
-  const call = (number) => {
-    Linking.openURL(`tel:${number.replace(/[^0-9+]/g, '')}`).catch(() => {});
+  // Opens the system print dialog, which also offers "Save as PDF" and
+  // sharing on Android and iOS.
+  const printPlan = async () => {
+    try {
+      const html = buildPlanHtml({ t, lang, location, routes, contacts, county, profile, routeTime });
+      await Print.printAsync({ html });
+    } catch (e) {
+      console.warn('Plan PDF failed:', e?.message);
+      Alert.alert(t.printPlan, t.printError);
+    }
   };
 
   const levelMeta = [
@@ -75,8 +115,14 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
     3: { label: t.routeBadges[3], bg: theme.warningBg, color: theme.warning },
   };
 
+  const secLabel = (txt) => <Text style={[s.secLabel, { color: theme.textMid }]} accessibilityRole="header">{txt}</Text>;
+
   return (
-    <ScrollView style={{ flex:1, backgroundColor: theme.bg }} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={{ flex:1, backgroundColor: theme.bg }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} colors={[theme.accent]} />}
+    >
       <LocPicker value={loc} onChange={setLoc} />
 
       {location?.note && (
@@ -85,32 +131,80 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
         </View>
       )}
 
+      {/* ── Official alerts for this location (evacuations, fire warnings) ─ */}
+      {secLabel(t.evacAlertsLabel)}
+      <AlertList result={alerts} />
+
       {/* ── Official county resources ───────────────────────────────────── */}
       {county && (
         <View style={[s.ctaCard, { backgroundColor: theme.darkCard, marginBottom:0 }]}>
-          <Text style={s.ctaTitle}>{fmt(t.countyResources, { county: location.county })}</Text>
-          <TouchableOpacity style={s.ctaBtn} onPress={() => openUrl(county.alertUrl)} accessibilityRole="link">
-            <Text style={s.ctaBtnTxt}>{fmt(t.signUpAlerts, { name: county.alertName })}</Text>
+          <Text style={[s.ctaTitle, { color: theme.darkCardText }]} accessibilityRole="header">{fmt(t.countyResources, { county: location.county })}</Text>
+          <TouchableOpacity style={[s.ctaBtn, { backgroundColor: theme.accent, flexDirection:'row', gap:8 }]} onPress={() => openUrl(county.alertUrl)} accessibilityRole="link">
+            <Ionicons name="notifications" size={18} color={theme.onAccent} />
+            <Text style={[s.ctaBtnTxt, { color: theme.onAccent, flexShrink:1 }]}>{fmt(t.signUpAlerts, { name: county.alertName })}</Text>
           </TouchableOpacity>
           {county.evacMapUrl ? (
-            <TouchableOpacity style={[s.ctaBtn, { backgroundColor:'transparent', borderWidth:1.5, borderColor: ACCENT, marginTop:10 }]} onPress={() => openUrl(county.evacMapUrl)} accessibilityRole="link">
-              <Text style={s.ctaBtnTxt}>{t.evacLookup}</Text>
+            <TouchableOpacity style={[s.ctaBtn, { borderWidth:1.5, borderColor: theme.accent, marginTop:10, flexDirection:'row', gap:8 }]} onPress={() => openUrl(county.evacMapUrl)} accessibilityRole="link">
+              <Ionicons name="search" size={18} color={theme.darkCardText} />
+              <Text style={[s.ctaBtnTxt, { color: theme.darkCardText, flexShrink:1 }]}>{t.evacLookup}</Text>
             </TouchableOpacity>
           ) : (
-            <Text style={[s.ctaBody, { marginTop:10, marginBottom:0 }]}>{t.noEvacLookup}</Text>
+            <Text style={[s.ctaBody, { color: theme.darkCardSub, marginTop:10, marginBottom:0 }]}>{t.noEvacLookup}</Text>
           )}
-          <TouchableOpacity onPress={() => openUrl(county.infoUrl)} style={{ paddingVertical:10, marginTop:4 }} accessibilityRole="link">
+          <TouchableOpacity onPress={() => openUrl(county.infoUrl)} style={{ minHeight:44, justifyContent:'center', marginTop:4 }} accessibilityRole="link">
             <Text style={{ color: theme.darkCardSub, fontSize:13, fontWeight:'600' }}>{t.countyInfo} ›</Text>
           </TouchableOpacity>
           <VerifyTag record={county} />
         </View>
       )}
 
+      {/* ── My household plan ───────────────────────────────────────────── */}
+      {secLabel(t.householdPlan)}
+      <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border, padding:16 }]}>
+        {hasHousehold ? (
+          <>
+            <View style={{ flexDirection:'row', gap:10, alignItems:'flex-start' }}>
+              <Ionicons name="flag" size={18} color={theme.accentText} style={{ marginTop:2 }} />
+              <View style={{ flex:1 }}>
+                <Text style={{ fontSize:12, fontWeight:'700', color: theme.textMid }}>{t.meetingPoint}</Text>
+                <Text style={{ fontSize:15, color: theme.text, marginTop:2 }}>{profile.meetingPoint?.trim() || t.notSet}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection:'row', gap:10, alignItems:'center', marginTop:14 }}>
+              <Ionicons name="person" size={18} color={theme.accentText} />
+              <View style={{ flex:1 }}>
+                <Text style={{ fontSize:12, fontWeight:'700', color: theme.textMid }}>{t.outOfAreaContact}</Text>
+                <Text style={{ fontSize:15, color: theme.text, marginTop:2 }}>
+                  {[profile.contactName, profile.contactPhone].filter((v) => v?.trim()).join(' · ') || t.notSet}
+                </Text>
+              </View>
+              {!!profile.contactPhone?.trim() && (
+                <TouchableOpacity
+                  style={[s.callBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => call(profile.contactPhone)}
+                  accessibilityLabel={fmt(t.callA11y, { name: profile.contactName || profile.contactPhone })}
+                >
+                  <Text style={[s.callBtnTxt, { color: theme.onAccent }]}>{t.call}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={{ fontSize:13, color: theme.textMid, marginTop:14 }}>
+              {fmt(t.householdCounts, { adults: profile.adults, children: profile.children, pets: profile.pets })}
+            </Text>
+          </>
+        ) : (
+          <Text style={{ fontSize:14, color: theme.textMid, lineHeight:20 }}>{t.householdEmpty}</Text>
+        )}
+        <TouchableOpacity onPress={onEditProfile} style={{ minHeight:44, justifyContent:'center', marginTop:6 }} accessibilityRole="button">
+          <Text style={{ fontSize:14, fontWeight:'700', color: theme.accentText }}>{t.editProfile} ›</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* ── Evacuation levels ───────────────────────────────────────────── */}
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.evacLevelTitle}</Text>
+      {secLabel(t.evacLevelTitle)}
       <View style={{ flexDirection:'row', gap:8, marginHorizontal:16 }}>
         {levelMeta.map((lv) => (
-          <View key={lv.num} style={[s.levelCard, { backgroundColor: lv.bg, borderColor: lv.color }]}>
+          <View key={lv.num} style={[s.levelCard, { backgroundColor: lv.bg, borderColor: lv.color }]} accessible accessibilityLabel={`${lv.num}. ${lv.tag}. ${lv.action}`}>
             <Text style={[s.levelNum, { color: lv.color }]}>{lv.num}</Text>
             <Text style={[s.levelTag, { color: lv.color }]}>{lv.tag}</Text>
             <Text style={[s.levelAction, { color: theme.textMid }]}>{lv.action}</Text>
@@ -119,7 +213,7 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
       </View>
 
       {/* ── Evacuation routes ───────────────────────────────────────────── */}
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.evacRoutes}</Text>
+      {secLabel(t.evacRoutes)}
       {!hasOfficialRoutes && (
         <View style={[s.disclaimerRow, { backgroundColor: theme.accentBg, borderColor: theme.accentText, marginBottom:4 }]}>
           <Text style={[s.disclaimerTxt, { color: theme.accentText }]}>{t.genericRoutesNote}</Text>
@@ -132,7 +226,7 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
         return (
           <View
             key={r.num}
-            style={[s.routeCard, { backgroundColor: theme.surface, borderColor: urgent ? theme.danger : theme.border }]}
+            style={[s.routeCard, { backgroundColor: theme.surface, borderColor: urgent ? theme.danger : theme.border, borderWidth: urgent ? 2 : 1 }]}
           >
             {hasOfficialRoutes && (
               <View style={s.routeHead}>
@@ -140,9 +234,10 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
                   <Text style={[s.tagTxt, { color: badge.color }]}>{badge.label}</Text>
                 </View>
                 {time && (
-                  <Text style={[s.routeTime, { backgroundColor: urgent ? theme.dangerBg : theme.surfaceAlt, color: urgent ? theme.danger : theme.textMid }]}>
-                    {time}
-                  </Text>
+                  <View style={[s.routeTime, { backgroundColor: urgent ? theme.dangerBg : theme.surfaceAlt, flexDirection:'row', alignItems:'center', gap:4 }]}>
+                    <Ionicons name={urgent ? 'warning' : 'time-outline'} size={12} color={urgent ? theme.danger : theme.textMid} />
+                    <Text style={{ fontSize:12, fontWeight:'700', color: urgent ? theme.danger : theme.textMid }}>{time}</Text>
+                  </View>
                 )}
               </View>
             )}
@@ -167,7 +262,7 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
       )}
 
       {/* ── Emergency contacts ──────────────────────────────────────────── */}
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.emergencyContacts}</Text>
+      {secLabel(t.emergencyContacts)}
       <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {contacts.map((c, i) => (
           <View
@@ -183,22 +278,32 @@ export default function PlanScreen({ loc, setLoc, setActions }) {
               <VerifyTag record={c} />
             </View>
             <TouchableOpacity
-              style={[s.callBtn, { backgroundColor: ACCENT }]}
+              style={[s.callBtn, { backgroundColor: theme.accent }]}
               onPress={() => call(c.detail)}
               accessibilityLabel={fmt(t.callA11y, { name: c.name })}
             >
-              <Text style={s.callBtnTxt}>{t.call}</Text>
+              <Text style={[s.callBtnTxt, { color: theme.onAccent }]}>{t.call}</Text>
             </TouchableOpacity>
           </View>
         ))}
       </View>
 
-      {/* ── Share ───────────────────────────────────────────────────────── */}
+      {/* ── Share / print ───────────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[s.shareScoreBtn, { marginHorizontal:16, marginTop:20 }]}
+        style={[s.shareScoreBtn, { backgroundColor: theme.accent, marginHorizontal:16, marginTop:20, flexDirection:'row', gap:8 }]}
         onPress={sharePlan}
+        accessibilityRole="button"
       >
-        <Text style={s.shareScoreBtnTxt}>{t.sharePlan}</Text>
+        <Ionicons name="share-social" size={18} color={theme.onAccent} />
+        <Text style={[s.shareScoreBtnTxt, { color: theme.onAccent }]}>{t.sharePlan}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.resetBtn, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection:'row', gap:8 }]}
+        onPress={printPlan}
+        accessibilityRole="button"
+      >
+        <Ionicons name="print-outline" size={18} color={theme.accentText} />
+        <Text style={[s.resetBtnTxt, { color: theme.accentText, fontWeight:'700' }]}>{t.printPlan}</Text>
       </TouchableOpacity>
       <View style={{ height:20 }} />
     </ScrollView>

@@ -90,6 +90,22 @@ export const T = {
     gobagTailored:'Tailored to your household of {people}. Edit your profile to change it.',
     themeModes:{ system:'Auto', light:'Light', dark:'Dark' }, themeA11y:'Theme: {mode}. Tap to change.', langA11y:'Switch language to {lang}',
     loading:'Loading…',
+    aqiA11y:'Air quality index {aqi}: {label}',
+    fireA11y:'{name}. {status}. {distance}. {acres} acres, {contained} contained.',
+    humidity:'Min humidity', gusts:'Gusts', noValue:'—', aqiUnit:'AQI', firesUnavailable:'Fire data unavailable',
+    useMyLocation:'Use my location', locating:'Finding your location…',
+    locationDenied:'Location permission was denied. Choose a community from the list.',
+    locationError:"Couldn't get your location. Choose a community from the list.",
+    nearestPicked:'Nearest community: {name} ({mi} mi away)', closeA11y:'Close',
+    householdPlan:'My household plan', outOfAreaContact:'Out-of-area contact', notSet:'Not set',
+    householdCounts:'Adults: {adults} · Children: {children} · Pets: {pets}',
+    householdEmpty:'Add a meeting point and an out-of-area contact so everyone knows where to go and who to call.',
+    printPlan:'Print or save as PDF', printError:"Couldn't create the PDF. Try again.",
+    planGenerated:'Generated {date}', planPdfTitle:'WildfireReady evacuation plan — {community}',
+    staleBanner:'Offline — showing saved data from {time}. Pull down to refresh.',
+    verifyStale:'Verified more than 6 months ago — re-check before relying on it',
+    mapA11y:'Map of WA-08 communities and the nearest fires',
+    evacAlertsLabel:'Official evacuation & fire alerts',
     galUnit:'gal',
     shelterDisclaimer:'Shelters listed are possible destinations, not confirmed open shelters, unless marked Verified. Shelters change for every event — confirm open shelters through your county alerts or by dialing 2-1-1.',
     verifiedOn:'Verified {date}', unverified:'Unverified — confirm with official sources',
@@ -201,6 +217,22 @@ export const T = {
     gobagTailored:'Adaptada a su hogar de {people}. Edite su perfil para cambiarlo.',
     themeModes:{ system:'Auto', light:'Claro', dark:'Oscuro' }, themeA11y:'Tema: {mode}. Toque para cambiar.', langA11y:'Cambiar idioma a {lang}',
     loading:'Cargando…',
+    aqiA11y:'Índice de calidad del aire {aqi}: {label}',
+    fireA11y:'{name}. {status}. {distance}. {acres} acres, {contained} contenido.',
+    humidity:'Humedad mín.', gusts:'Ráfagas', noValue:'—', aqiUnit:'ICA', firesUnavailable:'Datos de incendios no disponibles',
+    useMyLocation:'Usar mi ubicación', locating:'Buscando su ubicación…',
+    locationDenied:'Se negó el permiso de ubicación. Elija una comunidad de la lista.',
+    locationError:'No se pudo obtener su ubicación. Elija una comunidad de la lista.',
+    nearestPicked:'Comunidad más cercana: {name} (a {mi} mi)', closeA11y:'Cerrar',
+    householdPlan:'Mi plan del hogar', outOfAreaContact:'Contacto fuera del área', notSet:'Sin definir',
+    householdCounts:'Adultos: {adults} · Niños: {children} · Mascotas: {pets}',
+    householdEmpty:'Agregue un punto de encuentro y un contacto fuera del área para que todos sepan a dónde ir y a quién llamar.',
+    printPlan:'Imprimir o guardar como PDF', printError:'No se pudo crear el PDF. Intente de nuevo.',
+    planGenerated:'Generado {date}', planPdfTitle:'Plan de evacuación WildfireReady — {community}',
+    staleBanner:'Sin conexión — mostrando datos guardados de {time}. Deslice hacia abajo para actualizar.',
+    verifyStale:'Verificado hace más de 6 meses — vuelva a confirmar antes de usarlo',
+    mapA11y:'Mapa de las comunidades de WA-08 y los incendios más cercanos',
+    evacAlertsLabel:'Alertas oficiales de evacuación e incendios',
     galUnit:'gal',
     shelterDisclaimer:'Los refugios listados son destinos posibles, no refugios abiertos confirmados, a menos que digan Verificado. Los refugios cambian en cada evento — confirme los refugios abiertos con las alertas de su condado o marcando 2-1-1.',
     verifiedOn:'Verificado {date}', unverified:'Sin verificar — confirme con fuentes oficiales',
@@ -288,6 +320,10 @@ const FORECAST_WORDS_ES = {
   'Rain Likely':'Lluvia probable','Light Rain Likely':'Lluvia ligera probable',
   'Patchy Fog':'Niebla dispersa','Areas Of Fog':'Áreas de niebla','Haze':'Bruma',
   'Smoke':'Humo','Areas Of Smoke':'Áreas de humo','Widespread Haze':'Bruma generalizada',
+  'Snow Showers':'Chubascos de nieve','Rain And Snow':'Lluvia y nieve',
+  'Rain And Snow Showers':'Chubascos de lluvia y nieve','Showers Likely':'Chubascos probables',
+  'Rain Showers Likely':'Chubascos de lluvia probables','Rain And Snow Showers Likely':'Chubascos de lluvia y nieve probables',
+  'Snow Likely':'Nieve probable','Rain And Snow Likely':'Lluvia y nieve probables',
 };
 
 // Pre-sort longest phrase first so multi-word terms ("Mostly Clear") translate
@@ -302,6 +338,12 @@ function escapeRe(str) {
 export function translateDayName(name, lang) {
   if (lang !== 'es') return name;
   return DAY_NAMES_ES[name] || name;
+}
+
+// NWS wind strings: "SW 10 to 15 mph" → "SW 10 a 15 mph".
+export function translateWind(wind, lang) {
+  if (lang !== 'es' || !wind) return wind;
+  return wind.replace(/\bto\b/g, 'a');
 }
 
 export function translateForecast(forecast, lang) {

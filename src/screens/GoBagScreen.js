@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { s } from '../styles';
-import { useTheme, ACCENT } from '../theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTheme } from '../theme';
 import { useLang, useLangCode, fmt } from '../i18n';
 import { getGoBag, householdSize } from '../data/gobag';
 
@@ -43,7 +44,9 @@ export default function GoBagScreen({ checkedIds, setCheckedIds, profile, onEdit
           <Text style={{ fontSize:14, fontWeight:'600', color: theme.darkCardSub }}>{t.gobagReadiness}</Text>
           <Text style={{ fontSize:22, fontWeight:'700', color: theme.darkCardText }}>{pct}%</Text>
         </View>
-        <View style={s.progressTrack}><View style={[s.progressFill, { width:`${pct}%` }]} /></View>
+        <View style={[s.progressTrack, { backgroundColor: theme.progressBg }]} accessibilityRole="progressbar" accessibilityValue={{ min:0, max:100, now:pct }}>
+          <View style={[s.progressFill, { width:`${pct}%`, backgroundColor: theme.accent }]} />
+        </View>
         <Text style={{ fontSize:12, color: theme.darkCardSub, marginTop:8 }}>
           {packed} {t.of} {items.length} {t.itemsPacked}
         </Text>
@@ -62,9 +65,9 @@ export default function GoBagScreen({ checkedIds, setCheckedIds, profile, onEdit
         return (
           <View key={secKey} style={[s.checkSec, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[s.checkSecHead, { backgroundColor: theme.surfaceAlt, borderBottomColor: theme.border }]}>
-              <Text style={[s.checkSecTitle, { color: theme.text }]}>{secItems[0].sec}</Text>
-              <Text style={[s.checkSecProg, { color: theme.textLight }]}>
-                <Text style={{ color: ACCENT, fontWeight:'700' }}>{done}</Text>/{secItems.length}
+              <Text style={[s.checkSecTitle, { color: theme.text }]} accessibilityRole="header">{secItems[0].sec}</Text>
+              <Text style={[s.checkSecProg, { color: theme.textMid }]}>
+                <Text style={{ color: theme.accentText, fontWeight:'700' }}>{done}</Text>/{secItems.length}
               </Text>
             </View>
             {secItems.map((item, idx) => {
@@ -73,13 +76,16 @@ export default function GoBagScreen({ checkedIds, setCheckedIds, profile, onEdit
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[s.checkItem, idx < secItems.length - 1 && [s.checkItemBorder, { borderBottomColor: theme.borderLight }], checked && { opacity:0.45 }]}
+                  style={[s.checkItem, idx < secItems.length - 1 && [s.checkItemBorder, { borderBottomColor: theme.borderLight }]]}
                   onPress={() => toggle(item.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={`${item.text}, ${item.tag}`}
                 >
-                  <View style={[s.checkbox, { borderColor: theme.border }, checked && s.checkboxDone]}>
-                    {checked && <Text style={{ color: theme.onAccent, fontSize:13, fontWeight:'700' }}>✓</Text>}
+                  <View style={[s.checkbox, { borderColor: checked ? theme.success : theme.textLight, backgroundColor: checked ? theme.success : 'transparent' }]}>
+                    {checked && <Ionicons name="checkmark" size={17} color={theme.onAccent} />}
                   </View>
-                  <Text style={[s.checkTxt, { color: theme.text }, checked && { textDecorationLine:'line-through', color: theme.textLight }]}>
+                  <Text style={[s.checkTxt, { color: theme.text }, checked && { textDecorationLine:'line-through', color: theme.textMid }]}>
                     {item.text}
                   </Text>
                   <View style={[s.tag, { backgroundColor: tc.bg }]}>
@@ -92,7 +98,7 @@ export default function GoBagScreen({ checkedIds, setCheckedIds, profile, onEdit
         );
       })}
 
-      <TouchableOpacity style={[s.resetBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={confirmReset}>
+      <TouchableOpacity style={[s.resetBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={confirmReset} accessibilityRole="button">
         <Text style={[s.resetBtnTxt, { color: theme.textMid }]}>{t.resetAll}</Text>
       </TouchableOpacity>
       <View style={{ height:20 }} />

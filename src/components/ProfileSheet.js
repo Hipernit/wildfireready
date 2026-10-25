@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, Switch, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { s } from '../styles';
-import { useTheme, ACCENT } from '../theme';
+import { useTheme } from '../theme';
 import { useLang, fmt } from '../i18n';
 
 function Stepper({ label, value, onChange, min = 0, max = 20 }) {
@@ -18,7 +18,7 @@ function Stepper({ label, value, onChange, min = 0, max = 20 }) {
         accessibilityLabel={fmt(a11y, { label })}
         style={[s.stepBtn, { borderColor: theme.border, opacity: disabled ? 0.35 : 1 }]}
       >
-        <Text style={{ fontSize:22, fontWeight:'700', color: ACCENT }}>{glyph}</Text>
+        <Text style={{ fontSize:22, fontWeight:'700', color: theme.accentText }}>{glyph}</Text>
       </TouchableOpacity>
     );
   };
@@ -26,7 +26,7 @@ function Stepper({ label, value, onChange, min = 0, max = 20 }) {
     <View style={[s.formRow, { borderBottomColor: theme.borderLight }]}>
       <Text style={[s.formLabel, { color: theme.text }]}>{label}</Text>
       <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
-        {btn(-1, '−', t.decreaseA11y)}
+        {btn(-1, 'âˆ’', t.decreaseA11y)}
         <Text style={{ fontSize:17, fontWeight:'700', color: theme.text, minWidth:24, textAlign:'center' }} accessibilityLiveRegion="polite">{value}</Text>
         {btn(1, '+', t.increaseA11y)}
       </View>
@@ -39,7 +39,7 @@ function Toggle({ label, value, onChange }) {
   return (
     <View style={[s.formRow, { borderBottomColor: theme.borderLight }]}>
       <Text style={[s.formLabel, { color: theme.text, flex:1, paddingRight:12 }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: ACCENT }} accessibilityLabel={label} />
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent, false: theme.border }} thumbColor={theme.surface} accessibilityLabel={label} />
     </View>
   );
 }
@@ -82,7 +82,7 @@ export default function ProfileSheet({ visible, profile, onSave, onClose }) {
             </TouchableOpacity>
             <Text style={[s.modalTitle, { color: theme.text }]} accessibilityRole="header">{t.profileTitle}</Text>
             <TouchableOpacity onPress={() => onSave(draft)} accessibilityRole="button" style={s.modalHeadBtn}>
-              <Text style={s.modalDone}>{t.save}</Text>
+              <Text style={[s.modalDone, { color: theme.accentText }]}>{t.save}</Text>
             </TouchableOpacity>
           </View>
           <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

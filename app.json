@@ -19,6 +19,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "WildfireReady uses your location once to pick the nearest WA-08 community. It is not stored or sent anywhere."
+        }
+      ]
+    ]
   }
 }

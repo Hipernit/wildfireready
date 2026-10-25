@@ -1,6 +1,7 @@
 import { AIRNOW_API_KEY, DEMO_MODE } from '../config';
 import { findLocation } from '../data/locations';
 import { readJSON, writeJSON, lastGoodKey } from './storage';
+import { fetchWithTimeout } from './http';
 
 // ── AQI CATEGORIES ────────────────────────────────────────────────────────
 // AirNow category name → app category key. Labels/messages live in i18n.js.
@@ -55,7 +56,7 @@ export async function fetchAQI(locationKey) {
   if (!AIRNOW_API_KEY) return offlineResult(locationKey, 'noKey');
 
   try {
-    const res = await fetch(`https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`);
+    const res = await fetchWithTimeout(`https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`);
     if (res.status === 401 || res.status === 403) return offlineResult(locationKey, 'badKey');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();

@@ -1,19 +1,13 @@
 import { NWS_UA, DEMO_MODE } from '../config';
 import { findLocation, EAST } from '../data/locations';
 import { readJSON, writeJSON, lastGoodKey } from './storage';
+import { fetchWithTimeout } from './http';
 
 // ── ESTIMATED FIRE RISK ───────────────────────────────────────────────────
 // An app-computed estimate, NOT an official NWS product. Points come from
 // forecast high temperature, minimum relative humidity over the period, and
 // the stronger of sustained wind (upper bound) or 70% of the peak gust.
-const RISK_STYLE = {
-  Extreme:  { color:'#7B0000', bg:'#FEF2F2', dot:'●' },
-  High:     { color:'#C0392B', bg:'#FDECEA', dot:'●' },
-  Moderate: { color:'#C07A00', bg:'#FFF8E6', dot:'●' },
-  Low:      { color:'#2E7D5E', bg:'#E8F5EE', dot:'●' },
-  Minimal:  { color:'#1C6EA4', bg:'#EBF4FB', dot:'●' },
-};
-
+// Colors for each level live in theme.js (RISK_TONE).
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function estimateFireRisk({ tempF, windMph, gustMph, minRH }) {
@@ -28,7 +22,7 @@ export function estimateFireRisk({ tempF, windMph, gustMph, minRH }) {
     : score >= 35 ? 'Moderate'
     : score >= 15 ? 'Low'
     : 'Minimal';
-  return { level, score, rhMissing: minRH == null, ...RISK_STYLE[level] };
+  return { level, score, rhMissing: minRH == null };
 }
 
 // "10 to 20 mph" → 20, "5 mph" → 5, "" → null. Uses the upper bound so a
@@ -71,7 +65,7 @@ const WX_CACHE_MS = 3 * 60 * 60 * 1000; // 3 hours
 const NWS_HEADERS = { 'User-Agent': NWS_UA, 'Accept': 'application/geo+json' };
 
 async function getJSON(url) {
-  const res = await fetch(url, { headers: NWS_HEADERS });
+  const res = await fetchWithTimeout(url, { headers: NWS_HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
