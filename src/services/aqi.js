@@ -58,6 +58,26 @@ async function offlineResult(locationKey, reason) {
   return { status: 'unavailable', reason };
 }
 
+// AirNow "Current Observations by zip code or lat/long". The older
+// /aq/observation/zipCode/current/ service was retired on 2026-10-01.
+export const airnowUrl = (loc) =>
+  'https://www.airnowapi.org/aq/observation/current/ziplatlong/?format=application/json' +
+  `&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`;
+
+// Picks the reading to show (PM2.5 for wildfire smoke, then ozone, then any)
+// from an AirNow response. Returns null when no monitor reports a value.
+export function pickReading(data) {
+  const valid = (Array.isArray(data) ? data : []).filter((d) => typeof d?.nowcastAQI === 'number');
+  const r =
+    valid.find((d) => d.parameterName === 'PM2.5') || valid.find((d) => d.parameterName === 'OZONE') || valid[0];
+  if (!r) return null;
+  return {
+    aqi: r.nowcastAQI,
+    cat: AQI_CATS[r.aqiCategoryName] || aqiCategory(r.nowcastAQI),
+    parameter: r.parameterName,
+  };
+}
+
 export async function fetchAQI(locationKey) {
   const cached = aqiCache[locationKey];
   if (cached && Date.now() - cached.ts < AQI_CACHE_MS) return cached.result;
@@ -67,27 +87,16 @@ export async function fetchAQI(locationKey) {
   if (!AIRNOW_API_KEY) return offlineResult(locationKey, 'noKey');
 
   try {
-    const res = await fetchWithTimeout(
-      `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`,
-    );
+    const res = await fetchWithTimeout(airnowUrl(loc));
     if (res.status === 401 || res.status === 403) return offlineResult(locationKey, 'badKey');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('bad payload');
     // No monitor reporting nearby is a real answer, not an outage.
-    if (data.length === 0) return { status: 'unavailable', reason: 'noData' };
+    const reading = pickReading(data);
+    if (!reading) return { status: 'unavailable', reason: 'noData' };
 
-    const reading =
-      data.find((d) => d.ParameterName === 'PM2.5') || data.find((d) => d.ParameterName === 'O3') || data[0];
-    const result = {
-      status: 'live',
-      fetchedAt: Date.now(),
-      reading: {
-        aqi: reading.AQI,
-        cat: AQI_CATS[reading.Category?.Name] || aqiCategory(reading.AQI),
-        parameter: reading.ParameterName,
-      },
-    };
+    const result = { status: 'live', fetchedAt: Date.now(), reading };
     aqiCache[locationKey] = { result, ts: Date.now() };
     await writeJSON(lastGoodKey('aqi', locationKey), { fetchedAt: result.fetchedAt, reading: result.reading });
     return result;

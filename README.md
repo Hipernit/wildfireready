@@ -60,7 +60,7 @@ Adults, children, pets, prescription medications, mobility/access needs, someone
 
 | Source | Endpoint | Used for |
 |---|---|---|
-| EPA AirNow | `airnowapi.org/aq/observation/zipCode/current/` | AQI by ZIP code |
+| EPA AirNow | `airnowapi.org/aq/observation/current/ziplatlong/` (the older `zipCode/current` service was retired 2026-10-01) | Current AQI (NowCast) by ZIP code |
 | NOAA NWS | `api.weather.gov/points/{lat},{lon}` → forecast + `forecastGridData` | Forecast, humidity, gusts |
 | NOAA NWS alerts | `api.weather.gov/alerts/active?point={lat},{lon}` | Official warnings, watches, advisories |
 | NIFC WFIGS | `services3.arcgis.com/T4QMspbfLg3qTGWY/.../WFIGS_Incident_Locations_Current/FeatureServer/0` | Current Washington wildfire incidents |
