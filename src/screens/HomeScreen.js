@@ -1,25 +1,24 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Linking } from 'react-native';
 import { s } from '../styles';
-import { useTheme, useIsDark, ACCENT } from '../theme';
-import { useLang } from '../i18n';
-import { findLocation, LOCATIONS } from '../data/locations';
+import { useTheme, ACCENT } from '../theme';
+import { useLang, useLangCode, fmt, formatShortDate, formatNumber } from '../i18n';
+import { findLocation } from '../data/locations';
+import { COUNTY_RESOURCES } from '../data/emergency';
 import { fetchAQI, aqiCache } from '../services/aqi';
-import { fetchLiveFires, fireCache } from '../services/fires';
+import { fetchLiveFires, fireCache, withDistance, NEARBY_MILES } from '../services/fires';
 import { fetchNwsAlerts, alertCache } from '../services/weather';
 import LocPicker from '../components/LocPicker';
 import AlertList from '../components/AlertList';
+import FireMap from '../components/FireMap';
 import { LoadingCard, DataStatus, UnavailableCard } from '../components/StatusLine';
 
-// Guarded require so the screen still renders if the native module is absent
-let WebView = null;
-try {
-  WebView = require('react-native-webview').WebView;
-} catch (_) {}
+const FIRES_SHOWN = 6;
 
 // AQI category → theme color. Advisory banners are app guidance derived from
 // the AirNow reading, not official alerts.
 const AQI_TONE = { good:'success', moderate:'warning', sensitive:'accentText', unhealthy:'danger', veryUnhealthy:'danger', hazardous:'danger' };
+const FIRE_TONE = { active:'danger', monitoring:'warning', contained:'success', unknown:'textMid' };
 
 function aqiAdvisory(cat, t, theme) {
   if (cat === 'unhealthy' || cat === 'veryUnhealthy' || cat === 'hazardous') {
@@ -31,10 +30,10 @@ function aqiAdvisory(cat, t, theme) {
   return null;
 }
 
-export default function HomeScreen({ loc, setLoc }) {
+export default function HomeScreen({ loc, setLoc, actions, setActions }) {
   const theme = useTheme();
-  const isDark = useIsDark();
   const t = useLang();
+  const lang = useLangCode();
 
   const [aqi, setAqi] = useState(null);
   const [fires, setFires] = useState(null);
@@ -42,9 +41,12 @@ export default function HomeScreen({ loc, setLoc }) {
   const [aqiLoading, setAqiLoading] = useState(true);
   const [fireLoading, setFireLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [focusId, setFocusId] = useState(null);
+  const scrollRef = useRef(null);
+  const cardY = useRef({});
 
   const loadAll = useCallback(async (k) => {
-    setAqiLoading(true); setFireLoading(true); setAlerts(null);
+    setAqiLoading(true); setAlerts(null);
     const [aqiData, fireData, alertData] = await Promise.all([fetchAQI(k), fetchLiveFires(), fetchNwsAlerts(k)]);
     setAqi(aqiData); setFires(fireData); setAlerts(alertData);
     setAqiLoading(false); setFireLoading(false);
@@ -58,58 +60,45 @@ export default function HomeScreen({ loc, setLoc }) {
     setRefreshing(false);
   }, [loc]);
 
-  useEffect(() => { loadAll(loc); }, [loc, loadAll]);
+  useEffect(() => { setFocusId(null); loadAll(loc); }, [loc, loadAll]);
 
   const location = findLocation(loc);
+  const county = location ? COUNTY_RESOURCES[location.county] : null;
+  const alertsDone = !!location && actions.alertsCounties.includes(location.county);
   const reading = aqi?.reading;
   const advisory = reading && aqi.status !== 'demo' ? aqiAdvisory(reading.cat, t, theme) : null;
   const aqiColor = reading ? theme[AQI_TONE[reading.cat]] : theme.textLight;
 
-  const mapHtml = useMemo(() => {
-    const tileUrl = isDark
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const attr = isDark
-      ? '&copy; OpenStreetMap contributors &copy; CARTO'
-      : '&copy; OpenStreetMap contributors';
-    const locsJson = JSON.stringify(
-      LOCATIONS.map((l) => ({ lat: l.lat, lon: l.lon, label: l.label }))
-    );
-    const firesJson = JSON.stringify(
-      (fires?.fires ?? [])
-        .filter((f) => f.lat && f.lon)
-        .map((f) => ({ lat: f.lat, lon: f.lon, name: f.name, acres: f.acres }))
-    );
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>html,body{margin:0;padding:0;height:100%;width:100%}#map{height:100%;width:100%}.leaflet-control-attribution{font-size:9px}</style>
-</head>
-<body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-(function(){
-  var map=L.map('map',{zoomControl:false}).setView([47.3,-121.5],7);
-  L.tileLayer(${JSON.stringify(tileUrl)},{attribution:${JSON.stringify(attr)},maxZoom:19}).addTo(map);
-  var locs=${locsJson};
-  locs.forEach(function(l){
-    L.circleMarker([l.lat,l.lon],{radius:6,fillColor:'#1C6EA4',color:'#fff',weight:2,opacity:1,fillOpacity:1}).addTo(map).bindPopup(l.label);
-  });
-  var fires=${firesJson};
-  fires.forEach(function(f){
-    L.circleMarker([f.lat,f.lon],{radius:6,fillColor:'#C0392B',color:'#fff',weight:2,opacity:1,fillOpacity:1}).addTo(map).bindPopup('<b>'+f.name+'</b><br>'+f.acres+' acres');
-  });
-})();
-</script>
-</body>
-</html>`;
-  }, [isDark, fires]);
+  // Nearest fires to the selected community, with display strings.
+  const nearest = useMemo(() => {
+    const sorted = withDistance(fires?.fires ?? [], location);
+    return sorted.slice(0, FIRES_SHOWN).map((f) => {
+      const mi = f.distanceMi != null ? Math.round(f.distanceMi) : null;
+      const title = f.name || t.unnamedFire;
+      const acres = f.acres != null ? `${formatNumber(f.acres, lang)} ${t.acresWord}` : t.unknown;
+      const dist = mi != null ? fmt(t.distanceFrom, { mi, community: location?.label }) : '';
+      return { ...f, mi, near: mi != null && mi <= NEARBY_MILES, title, subtitle: [acres, dist].filter(Boolean).join(' · ') };
+    });
+  }, [fires, location, t, lang]);
+  const focusFires = useMemo(() => nearest.slice(0, 3).filter((f) => f.lat != null), [nearest]);
+
+  const scrollToFire = useCallback((id) => {
+    const y = cardY.current[id];
+    setFocusId(id);
+    if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+  }, []);
+
+  const toggleAlertsDone = () => {
+    if (!location) return;
+    setActions((a) => ({
+      ...a,
+      alertsCounties: alertsDone ? a.alertsCounties.filter((c) => c !== location.county) : [...a.alertsCounties, location.county],
+    }));
+  };
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex:1, backgroundColor: theme.bg }}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={ACCENT} />}
@@ -117,17 +106,7 @@ export default function HomeScreen({ loc, setLoc }) {
       <LocPicker value={loc} onChange={setLoc} />
 
       {/* ── Community & fire map ───────────────────────────────────────────── */}
-      {WebView != null && (
-        <View style={{ height: 220, marginHorizontal: 16, borderRadius: 12, marginTop: 12, overflow: 'hidden' }}>
-          <WebView
-            source={{ html: mapHtml }}
-            style={{ flex: 1 }}
-            originWhitelist={['*']}
-            javaScriptEnabled={true}
-            scrollEnabled={false}
-          />
-        </View>
-      )}
+      <FireMap loc={loc} fires={nearest} focusFires={focusFires} nearMiles={NEARBY_MILES} onSelectFire={scrollToFire} />
       <View style={[s.credit, { marginTop: 4, marginBottom: 4 }]}>
         <Text style={[s.creditTxt, { color: theme.textLight }]}>{t.mapCredit}</Text>
       </View>
@@ -172,62 +151,100 @@ export default function HomeScreen({ loc, setLoc }) {
         <UnavailableCard title={t.aqiUnavailable} msg={t.aqiUnavailableMsg} />
       )}
 
-      <Text style={[s.secLabel, { color: theme.textLight }]}>{t.activeFires}</Text>
+      <Text style={[s.secLabel, { color: theme.textLight }]}>{fmt(t.activeFires, { community: location?.label })}</Text>
       {fireLoading ? (
         <LoadingCard label={t.fetchingFires} height={80} />
-      ) : fires?.fires?.length === 0 ? (
-        <View style={[s.aqiCard, { backgroundColor: theme.surface, borderColor: theme.border, padding:16 }]}>
+      ) : nearest.length === 0 ? (
+        <View style={[s.aqiCard, { backgroundColor: theme.surface, borderColor: theme.border, padding:16, flexDirection:'column', alignItems:'flex-start', gap:0 }]}>
           <Text style={{ fontSize:14, color: theme.textMid, lineHeight:20 }}>
-            {fires.status === 'live' ? t.noFires : t.firesFetchError}
+            {fires.status === 'unavailable' ? t.firesFetchError : t.noFires}
           </Text>
           <DataStatus status={fires.status} fetchedAt={fires.fetchedAt} />
         </View>
       ) : (
-        fires?.fires?.map((f) => {
-          const sc = f.status === 'active' ? '#C0392B' : f.status === 'monitoring' ? '#C07A00' : '#2E7D5E';
-          const sl = t.fireStatus[f.status];
+        nearest.map((f) => {
+          const sc = theme[FIRE_TONE[f.status]];
+          const focused = f.id === focusId;
           return (
-            <View key={f.id} style={[s.fireCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View
+              key={f.id}
+              onLayout={(e) => { cardY.current[f.id] = e.nativeEvent.layout.y; }}
+              style={[s.fireCard, { backgroundColor: theme.surface, borderColor: focused ? ACCENT : f.near ? theme.danger : theme.border, borderWidth: focused || f.near ? 2 : 1 }]}
+            >
               <View style={s.fireHead}>
                 <View style={[s.fireDot, { backgroundColor: sc }]} />
-                <Text style={[s.fireName, { color: theme.text }]}>{f.name}</Text>
-                <View style={[s.fireBadge, { backgroundColor: sc + '22' }]}>
-                  <Text style={[s.fireBadgeTxt, { color: sc }]}>{sl}</Text>
+                <View style={{ flex:1 }}>
+                  <Text style={[s.fireName, { color: theme.text }]}>{f.title}</Text>
+                  {f.mi != null && (
+                    <Text style={{ fontSize:12, marginTop:2, color: f.near ? theme.danger : theme.textMid, fontWeight: f.near ? '700' : '500' }}>
+                      {fmt(t.distanceFrom, { mi: f.mi, community: location?.label })}
+                    </Text>
+                  )}
+                </View>
+                <View style={[s.fireBadge, { backgroundColor: theme.surfaceAlt }]}>
+                  <Text style={[s.fireBadgeTxt, { color: sc }]}>{t.fireStatus[f.status]}</Text>
                 </View>
               </View>
+              {f.near && (
+                <View style={{ marginHorizontal:14, marginTop:-6, marginBottom:10 }}>
+                  <View style={[s.tag, { backgroundColor: theme.dangerBg, alignSelf:'flex-start' }]}>
+                    <Text style={[s.tagTxt, { color: theme.danger }]}>! {fmt(t.nearbyBadge, { mi: NEARBY_MILES })}</Text>
+                  </View>
+                </View>
+              )}
               <View style={[s.fireStats, { borderTopColor: theme.borderLight }]}>
                 <View style={{ flex:1 }}>
-                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.acres}</Text>
+                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.acres != null ? formatNumber(f.acres, lang) : t.unknown}</Text>
                   <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.acres}</Text>
                 </View>
                 <View style={{ flex:1 }}>
-                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.containment}</Text>
+                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.containment != null ? `${f.containment}%` : t.unknown}</Text>
                   <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.contained}</Text>
                 </View>
                 <View style={{ flex:1 }}>
-                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.location.split(' ')[0]}</Text>
+                  <Text style={[s.fstatVal, { color: theme.text }]}>{f.county ?? t.unknown}</Text>
                   <Text style={[s.fstatKey, { color: theme.textLight }]}>{t.county}</Text>
                 </View>
               </View>
               <View style={[s.fireFooter, { borderTopColor: theme.borderLight }]}>
-                <Text style={[s.fireFooterTxt, { color: theme.textLight }]}>{t.cause}: {f.cause}</Text>
-                <Text style={[s.fireFooterMeta, { color: theme.textLight }]}>{t.updated} {f.updated}</Text>
+                <Text style={[s.fireFooterTxt, { color: theme.textLight }]}>
+                  {t.cause}: {f.cause ? (t.fireCauses[f.cause] ?? f.cause) : t.underInvestigation}
+                </Text>
+                {f.modifiedAt != null && (
+                  <Text style={[s.fireFooterMeta, { color: theme.textLight }]}>{t.updated} {formatShortDate(f.modifiedAt, lang)}</Text>
+                )}
               </View>
             </View>
           );
         })
       )}
-      {fires && (
-        <View style={s.credit}><Text style={[s.creditTxt, { color: theme.textLight }]}>{t.nifcCredit}</Text></View>
+      {fires && nearest.length > 0 && (
+        <View style={s.credit}>
+          <Text style={[s.creditTxt, { color: theme.textLight }]}>
+            {fmt(t.nearestOf, { n: nearest.length, total: fires.fires.length })} · {t.nifcCredit}
+          </Text>
+          <DataStatus status={fires.status} fetchedAt={fires.fetchedAt} />
+        </View>
       )}
 
-      <View style={[s.ctaCard, { backgroundColor: theme.darkCard }]}>
-        <Text style={s.ctaTitle}>{t.getAlerts}</Text>
-        <Text style={s.ctaBody}>{t.alertsBody}</Text>
-        <TouchableOpacity style={s.ctaBtn}>
-          <Text style={s.ctaBtnTxt}>{t.enableAlerts} {location?.label}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── Official alert sign-up ──────────────────────────────────────── */}
+      {county && (
+        <View style={[s.ctaCard, { backgroundColor: theme.darkCard }]}>
+          <Text style={s.ctaTitle}>{t.getAlerts}</Text>
+          <Text style={s.ctaBody}>{fmt(t.alertsBody, { community: location.label, county: location.county })}</Text>
+          <TouchableOpacity style={s.ctaBtn} onPress={() => Linking.openURL(county.alertUrl).catch(() => {})} accessibilityRole="link">
+            <Text style={s.ctaBtnTxt}>{fmt(t.signUpAlerts, { name: county.alertName })}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={toggleAlertsDone}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: alertsDone }}
+            style={[s.ctaBtn, { backgroundColor: alertsDone ? theme.successBg : 'transparent', borderWidth:1.5, borderColor: alertsDone ? theme.success : theme.darkCardMuted, marginTop:10 }]}
+          >
+            <Text style={[s.ctaBtnTxt, { color: alertsDone ? theme.success : theme.darkCardText }]}>{alertsDone ? t.alertsDone : t.markAlertsDone}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={{ height:20 }} />
     </ScrollView>
   );

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, SafeAreaView, ScrollView } from 'react-native';
 import { s } from '../styles';
 import { useTheme, ACCENT } from '../theme';
-import { useLang } from '../i18n';
+import { useLang, fmt } from '../i18n';
 import { LOCATIONS, findLocation } from '../data/locations';
 
 export default function LocPicker({ value, onChange }) {
@@ -40,7 +40,7 @@ export default function LocPicker({ value, onChange }) {
                 >
                   <View>
                     <Text style={[s.locName, { color: theme.text }, selected && { color: ACCENT, fontWeight:'700' }]}>{l.label}</Text>
-                    <Text style={[s.locCounty, { color: theme.textLight }]}>{l.county} {t.county} · {l.zip}</Text>
+                    <Text style={[s.locCounty, { color: theme.textLight }]}>{fmt(t.countyName, { name: l.county })} · {l.zip}</Text>
                   </View>
                   {selected && <Text style={{ color: ACCENT, fontSize:18, fontWeight:'700' }}>✓</Text>}
                 </TouchableOpacity>

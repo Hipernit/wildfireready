@@ -1,34 +1,49 @@
-import { GOBAG } from '../data/gobag';
+import { applicableIds } from '../data/gobag';
 
 // ── HOUSEHOLD READINESS SCORE ─────────────────────────────────────────────
-// 50 pts go-bag · 30 pts profile · 10 location · 10 language = 100.
-export function calcScore(checkedIds, profile) {
-  const gobagPct = checkedIds.size / GOBAG.length;
-  const gobagScore = Math.round(gobagPct * 50);
+// Points are earned only by things the user has actually done:
+//   go-bag packed (share of items that apply to this household)  45
+//   household profile saved                                       15
+//   signed up for the county's official alerts (user confirms)    15
+//   plan shared with family                                       10
+//   family meeting point set                                      10
+//   out-of-area contact set (name + phone)                         5
+// A new user with nothing done scores 0 (F).
+export const SCORE_WEIGHTS = { gobag:45, profile:15, alerts:15, shared:10, meeting:10, contact:5 };
 
-  let profileScore = 0;
-  if (profile.adults > 0) profileScore += 10;
-  if (profile.meds !== undefined) profileScore += 5;
-  if (profile.mobility !== undefined) profileScore += 5;
-  if (profile.elderly !== undefined) profileScore += 5;
-  if (profile.pets >= 0) profileScore += 5;
-  profileScore = Math.min(30, profileScore);
+// Where each improvement is made: a tab key or 'profile' (the profile sheet).
+export const FIX_TARGETS = { gobag:'gobag', profile:'profile', alerts:'home', shared:'plan', meeting:'profile', contact:'profile' };
 
-  const total = gobagScore + profileScore + 10 + 10;
-  const grade = total >= 90 ? 'A' : total >= 75 ? 'B' : total >= 60 ? 'C' : total >= 40 ? 'D' : 'F';
-  const color = total >= 90 ? '#2E7D5E' : total >= 75 ? '#1C6EA4' : total >= 60 ? '#C07A00' : total >= 40 ? '#D4570A' : '#C0392B';
+export function calcScore({ checkedIds, profile, actions, county }) {
+  const ids = applicableIds(profile);
+  const packed = ids.filter((id) => checkedIds.has(id)).length;
+  const gobagPct = ids.length ? packed / ids.length : 0;
+
+  const done = {
+    profile: !!profile.savedAt,
+    alerts: !!county && (actions.alertsCounties || []).includes(county),
+    shared: !!actions.planSharedAt,
+    meeting: !!profile.meetingPoint?.trim(),
+    contact: !!(profile.contactName?.trim() && profile.contactPhone?.trim()),
+  };
 
   const categories = [
-    { key:'gobag',    pct:Math.round(gobagPct * 100),         score:gobagScore,   max:50 },
-    { key:'profile',  pct:Math.round((profileScore / 30) * 100), score:profileScore, max:30 },
-    { key:'location', pct:100, score:10, max:10 },
-    { key:'language', pct:100, score:10, max:10 },
+    { key:'gobag', score: Math.round(gobagPct * SCORE_WEIGHTS.gobag), max: SCORE_WEIGHTS.gobag, pct: Math.round(gobagPct * 100) },
+    ...['profile', 'alerts', 'shared', 'meeting', 'contact'].map((key) => ({
+      key, score: done[key] ? SCORE_WEIGHTS[key] : 0, max: SCORE_WEIGHTS[key], pct: done[key] ? 100 : 0,
+    })),
   ];
 
-  const fixes = [];
-  if (gobagPct < 1) fixes.push('gobag');
-  if (!profile.meds) fixes.push('meds');
-  if (profile.pets === 0) fixes.push('pets');
+  const total = categories.reduce((sum, c) => sum + c.score, 0);
+  const grade = total >= 90 ? 'A' : total >= 75 ? 'B' : total >= 60 ? 'C' : total >= 40 ? 'D' : 'F';
+  // Theme color key for the grade.
+  const tone = total >= 90 ? 'success' : total >= 75 ? 'info' : total >= 60 ? 'warning' : total >= 40 ? 'accentText' : 'danger';
 
-  return { total, grade, color, categories, fixes };
+  // Biggest remaining gains first.
+  const fixes = categories
+    .filter((c) => c.score < c.max)
+    .sort((a, b) => (b.max - b.score) - (a.max - a.score))
+    .map((c) => ({ key: c.key, target: FIX_TARGETS[c.key], gain: c.max - c.score }));
+
+  return { total, grade, tone, categories, fixes, packed, applicable: ids.length };
 }

@@ -26,7 +26,7 @@ function VerifyTag({ record }) {
   return <TouchableOpacity onPress={() => openUrl(record.source)} accessibilityRole="link">{body}</TouchableOpacity>;
 }
 
-export default function PlanScreen({ loc, setLoc }) {
+export default function PlanScreen({ loc, setLoc, setActions }) {
   const theme = useTheme();
   const t = useLang();
   const lang = useLangCode();
@@ -52,9 +52,11 @@ export default function PlanScreen({ loc, setLoc }) {
     }).join('\n\n');
     const contactText = contacts.map((c) => `${c.name}: ${c.detail}`).join('\n');
     const alertText = county ? `\n\n${fmt(t.signUpAlerts, { name: county.alertName })}: ${county.alertUrl}` : '';
-    await Share.share({
+    const res = await Share.share({
       message: `${t.shareMsg} ${location?.label}\n\n${t.evacRoutes}:\n${routeText}\n\n${t.shelterDisclaimer}\n\n${t.emergencyContacts}:\n${contactText}${alertText}${t.shareFooter}`,
-    });
+    }).catch(() => null);
+    // Android always reports sharedAction; iOS reports dismissedAction if cancelled.
+    if (res?.action === Share.sharedAction) setActions((a) => ({ ...a, planSharedAt: Date.now() }));
   };
 
   const call = (number) => {

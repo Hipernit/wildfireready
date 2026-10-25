@@ -2,10 +2,14 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { s } from '../styles';
 import { useTheme, ACCENT } from '../theme';
-import { useLang, useLangCode } from '../i18n';
-import { GOBAG } from '../data/gobag';
+import { useLang, useLangCode, fmt } from '../i18n';
+import { getGoBag, householdSize } from '../data/gobag';
 
-export default function GoBagScreen({ checkedIds, setCheckedIds }) {
+// Tag tone → theme colors.
+const toneColors = (tone, theme) =>
+  tone === 'neutral' ? { fg: theme.textMid, bg: theme.surfaceAlt } : { fg: theme[tone], bg: theme[`${tone}Bg`] };
+
+export default function GoBagScreen({ checkedIds, setCheckedIds, profile, onEditProfile }) {
   const theme = useTheme();
   const t = useLang();
   const lang = useLangCode();
@@ -16,8 +20,12 @@ export default function GoBagScreen({ checkedIds, setCheckedIds }) {
     return next;
   });
 
-  const pct = Math.round((checkedIds.size / GOBAG.length) * 100);
-  const sections = [...new Set(GOBAG.map((i) => i.sec[lang]))];
+  // Only items that apply to this household count; hidden ones keep their
+  // checked state in case the profile changes back.
+  const items = getGoBag(profile, lang);
+  const packed = items.filter((i) => checkedIds.has(i.id)).length;
+  const pct = items.length ? Math.round((packed / items.length) * 100) : 0;
+  const sections = [...new Set(items.map((i) => i.secKey))];
 
   const confirmReset = () => Alert.alert(
     t.resetConfirmTitle,
@@ -32,44 +40,50 @@ export default function GoBagScreen({ checkedIds, setCheckedIds }) {
     <ScrollView style={{ flex:1, backgroundColor: theme.bg }} showsVerticalScrollIndicator={false}>
       <View style={[s.progressCard, { backgroundColor: theme.darkCard }]}>
         <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:10 }}>
-          <Text style={{ fontSize:14, fontWeight:'600', color:'rgba(255,255,255,0.6)' }}>{t.gobagReadiness}</Text>
-          <Text style={{ fontSize:22, fontWeight:'700', color:'#fff' }}>{pct}%</Text>
+          <Text style={{ fontSize:14, fontWeight:'600', color: theme.darkCardSub }}>{t.gobagReadiness}</Text>
+          <Text style={{ fontSize:22, fontWeight:'700', color: theme.darkCardText }}>{pct}%</Text>
         </View>
         <View style={s.progressTrack}><View style={[s.progressFill, { width:`${pct}%` }]} /></View>
-        <Text style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:8 }}>
-          {checkedIds.size} {t.of} {GOBAG.length} {t.itemsPacked}
+        <Text style={{ fontSize:12, color: theme.darkCardSub, marginTop:8 }}>
+          {packed} {t.of} {items.length} {t.itemsPacked}
         </Text>
       </View>
 
       <Text style={[s.intro, { color: theme.textMid }]}>{t.gobagIntro}</Text>
+      <TouchableOpacity onPress={onEditProfile} accessibilityRole="button" style={{ marginHorizontal:16, paddingVertical:8 }}>
+        <Text style={{ fontSize:13, color: theme.accentText, fontWeight:'600', lineHeight:19 }}>
+          {fmt(t.gobagTailored, { people: householdSize(profile) })} ›
+        </Text>
+      </TouchableOpacity>
 
-      {sections.map((sec) => {
-        const items = GOBAG.filter((i) => i.sec[lang] === sec);
-        const done = items.filter((i) => checkedIds.has(i.id)).length;
+      {sections.map((secKey) => {
+        const secItems = items.filter((i) => i.secKey === secKey);
+        const done = secItems.filter((i) => checkedIds.has(i.id)).length;
         return (
-          <View key={sec} style={[s.checkSec, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View key={secKey} style={[s.checkSec, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={[s.checkSecHead, { backgroundColor: theme.surfaceAlt, borderBottomColor: theme.border }]}>
-              <Text style={[s.checkSecTitle, { color: theme.text }]}>{sec}</Text>
+              <Text style={[s.checkSecTitle, { color: theme.text }]}>{secItems[0].sec}</Text>
               <Text style={[s.checkSecProg, { color: theme.textLight }]}>
-                <Text style={{ color: ACCENT, fontWeight:'700' }}>{done}</Text>/{items.length}
+                <Text style={{ color: ACCENT, fontWeight:'700' }}>{done}</Text>/{secItems.length}
               </Text>
             </View>
-            {items.map((item, idx) => {
+            {secItems.map((item, idx) => {
               const checked = checkedIds.has(item.id);
+              const tc = toneColors(item.tone, theme);
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[s.checkItem, idx < items.length - 1 && [s.checkItemBorder, { borderBottomColor: theme.borderLight }], checked && { opacity:0.45 }]}
+                  style={[s.checkItem, idx < secItems.length - 1 && [s.checkItemBorder, { borderBottomColor: theme.borderLight }], checked && { opacity:0.45 }]}
                   onPress={() => toggle(item.id)}
                 >
                   <View style={[s.checkbox, { borderColor: theme.border }, checked && s.checkboxDone]}>
-                    {checked && <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>✓</Text>}
+                    {checked && <Text style={{ color: theme.onAccent, fontSize:13, fontWeight:'700' }}>✓</Text>}
                   </View>
                   <Text style={[s.checkTxt, { color: theme.text }, checked && { textDecorationLine:'line-through', color: theme.textLight }]}>
-                    {item.text[lang]}
+                    {item.text}
                   </Text>
-                  <View style={[s.tag, { backgroundColor: item.tb }]}>
-                    <Text style={[s.tagTxt, { color: item.tc }]}>{item.tag[lang]}</Text>
+                  <View style={[s.tag, { backgroundColor: tc.bg }]}>
+                    <Text style={[s.tagTxt, { color: tc.fg }]}>{item.tag}</Text>
                   </View>
                 </TouchableOpacity>
               );

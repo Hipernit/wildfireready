@@ -112,4 +112,10 @@ export const s = StyleSheet.create({
   callBtnTxt:{color:'#fff',fontWeight:'600',fontSize:13},
   disclaimerRow:{marginHorizontal:16,marginTop:10,borderRadius:10,borderWidth:1,padding:12},
   disclaimerTxt:{fontSize:12,lineHeight:17},
+  // Profile sheet
+  modalHeadBtn:{minHeight:44,minWidth:44,justifyContent:'center'},
+  formRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:16,paddingVertical:10,borderBottomWidth:1,minHeight:56},
+  formLabel:{fontSize:15,fontWeight:'500'},
+  stepBtn:{width:44,height:44,borderRadius:22,borderWidth:1,alignItems:'center',justifyContent:'center'},
+  input:{borderWidth:1,borderRadius:10,paddingHorizontal:12,paddingVertical:10,fontSize:15,minHeight:44},
 });

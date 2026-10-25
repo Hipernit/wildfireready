@@ -1,18 +1,59 @@
+import { readJSON, writeJSON, lastGoodKey } from './storage';
+import { distanceMiles } from './geo';
+
 // ── LIVE FIRE DATA ────────────────────────────────────────────────────────
 // NIFC WFIGS Current Incident Locations — public, no key needed. (The older
-// Current_WildlandFire_Locations service now requires a token.)
+// Current_WildlandFire_Locations service now requires a token.) Prescribed
+// burns (IncidentTypeCategory 'RX') are excluded.
 const NIFC_URL =
   'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/' +
   'WFIGS_Incident_Locations_Current/FeatureServer/0/query?' +
-  'where=POOState%3D%27US-WA%27&' +
-  'outFields=IncidentName,IncidentSize,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory,UniqueFireIdentifier&' +
-  'orderByFields=IncidentSize+DESC&resultRecordCount=5&' +
+  'where=' + encodeURIComponent("POOState='US-WA' AND IncidentTypeCategory<>'RX'") + '&' +
+  'outFields=IncidentName,IncidentSize,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory,UniqueFireIdentifier,IrwinID&' +
+  'orderByFields=IncidentSize+DESC&resultRecordCount=200&' +
   'f=json&returnGeometry=true&outSR=4326';
+
+export const NEARBY_MILES = 30;
 
 // Shared cache; exported so screens can force-refresh by resetting `ts`.
 export const fireCache = { data: null, ts: 0 };
-const FIRE_CACHE_MS = 4 * 60 * 60 * 1000; // 4 hours — NIFC updates daily
+const FIRE_CACHE_MS = 30 * 60 * 1000; // 30 minutes
 
+export function fireStatus(pct) {
+  if (pct == null) return 'unknown';
+  if (pct >= 100) return 'contained';
+  if (pct >= 70) return 'monitoring';
+  return 'active';
+}
+
+// Raw ArcGIS feature → app fire. Display formatting happens in the UI.
+export function parseFire(f) {
+  const a = f.attributes || {};
+  const lat = f.geometry?.y ?? null;
+  const lon = f.geometry?.x ?? null;
+  return {
+    id: a.UniqueFireIdentifier || a.IrwinID || `${a.IncidentName}-${lat}-${lon}`,
+    name: a.IncidentName || null,
+    county: a.POOCounty ? a.POOCounty.replace(/ county$/i, '') : null,
+    acres: a.IncidentSize != null ? Math.round(a.IncidentSize) : null,
+    containment: a.PercentContained != null ? Math.round(a.PercentContained) : null,
+    status: fireStatus(a.PercentContained),
+    cause: a.FireCause || null,
+    modifiedAt: a.ModifiedOnDateTime_dt || null,
+    type: a.IncidentTypeCategory || null,
+    lat, lon,
+  };
+}
+
+// Adds distanceMi from the community and sorts nearest first.
+export function withDistance(fires, loc) {
+  if (!loc) return fires;
+  return fires
+    .map((f) => ({ ...f, distanceMi: f.lat != null && f.lon != null ? distanceMiles(loc, { lat: f.lat, lon: f.lon }) : null }))
+    .sort((a, b) => (a.distanceMi ?? Infinity) - (b.distanceMi ?? Infinity));
+}
+
+// Result: { status: 'live'|'cached'|'unavailable', fetchedAt?, fires }
 export async function fetchLiveFires() {
   if (fireCache.data && Date.now() - fireCache.ts < FIRE_CACHE_MS) return fireCache.data;
 
@@ -20,44 +61,19 @@ export async function fetchLiveFires() {
     const res = await fetch(NIFC_URL);
     if (!res.ok) throw new Error(`NIFC HTTP ${res.status}`);
     const json = await res.json();
-
     // ArcGIS reports errors as HTTP 200 with an `error` body — never treat
     // that as "no fires".
     if (json.error || !Array.isArray(json.features)) throw new Error(json.error?.message || 'bad payload');
-    if (json.features.length === 0) {
-      return { fires: [], status:'live', fetchedAt: Date.now() };
-    }
 
-    const fires = json.features.map((f) => {
-      const a = f.attributes;
-      const acres = a.IncidentSize ? Math.round(a.IncidentSize).toLocaleString() : 'Unknown';
-      const pct = a.PercentContained != null ? `${Math.round(a.PercentContained)}%` : 'Unknown';
-      const county = a.POOCounty ? a.POOCounty.replace(' County', '').replace(' county', '') : 'Washington';
-      const contained = a.PercentContained;
-      const status = contained === 100 ? 'contained' : contained >= 70 ? 'monitoring' : 'active';
-      const updated = a.ModifiedOnDateTime_dt
-        ? new Date(a.ModifiedOnDateTime_dt).toLocaleDateString('en-US', { month:'short', day:'numeric' })
-        : 'Recent';
-      return {
-        id: a.IncidentName || Math.random().toString(),
-        name: a.IncidentName || 'Unnamed Fire',
-        location: `${county} County`,
-        acres,
-        containment: pct,
-        status,
-        updated,
-        cause: a.FireCause || 'Under investigation',
-        lat: f.geometry?.y ?? null,
-        lon: f.geometry?.x ?? null,
-      };
-    });
-
+    const fires = json.features.map(parseFire).filter((f) => f.type !== 'RX');
     const result = { fires, status:'live', fetchedAt: Date.now() };
     fireCache.data = result;
     fireCache.ts = Date.now();
+    await writeJSON(lastGoodKey('fires', 'wa'), { fetchedAt: result.fetchedAt, fires });
     return result;
   } catch (e) {
-    console.warn('NIFC fetch error:', e.message);
+    const saved = await readJSON(lastGoodKey('fires', 'wa'));
+    if (saved?.fires) return { status:'cached', fetchedAt: saved.fetchedAt, fires: saved.fires };
     return { fires: [], status:'unavailable', error: e.message };
   }
 }
