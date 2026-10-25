@@ -1,78 +1,82 @@
-import { AIRNOW_API_KEY } from '../config';
+import { AIRNOW_API_KEY, DEMO_MODE } from '../config';
 import { findLocation } from '../data/locations';
+import { readJSON, writeJSON, lastGoodKey } from './storage';
 
-// ── AQI METADATA ──────────────────────────────────────────────────────────
-const AQI_META = {
-  'Good':{ cat:'good', color:'#2E7D5E' },
-  'Moderate':{ cat:'moderate', color:'#C07A00' },
-  'Unhealthy for Sensitive Groups':{ cat:'sensitive', color:'#D4570A' },
-  'Unhealthy':{ cat:'unhealthy', color:'#C0392B' },
-  'Very Unhealthy':{ cat:'hazardous', color:'#7B0000' },
-  'Hazardous':{ cat:'hazardous', color:'#7B0000' },
+// ── AQI CATEGORIES ────────────────────────────────────────────────────────
+// AirNow category name → app category key. Labels/messages live in i18n.js.
+const AQI_CATS = {
+  'Good':'good',
+  'Moderate':'moderate',
+  'Unhealthy for Sensitive Groups':'sensitive',
+  'Unhealthy':'unhealthy',
+  'Very Unhealthy':'veryUnhealthy',
+  'Hazardous':'hazardous',
 };
 
-const AQI_MSGS = {
-  en:{ good:'Air quality is satisfactory. Great day to be outside.', moderate:'Acceptable for most. Sensitive individuals may want to limit outdoor exertion.', sensitive:'Children, elderly, and people with lung conditions should reduce outdoor exertion.', unhealthy:'Everyone should reduce prolonged outdoor exertion. Wear an N95 mask outside.', hazardous:'Health emergency. Everyone should avoid all outdoor activity.' },
-  es:{ good:'La calidad del aire es satisfactoria.', moderate:'Aceptable. Las personas sensibles deben limitar el esfuerzo al aire libre.', sensitive:'Niños, ancianos y personas con enfermedades pulmonares deben reducir el esfuerzo.', unhealthy:'Todos deben reducir el esfuerzo prolongado. Use mascarilla N95 afuera.', hazardous:'Emergencia de salud. Todos deben evitar toda actividad al aire libre.' },
+// EPA AQI breakpoints, used when AirNow omits the category.
+export function aqiCategory(aqi) {
+  if (aqi <= 50) return 'good';
+  if (aqi <= 100) return 'moderate';
+  if (aqi <= 150) return 'sensitive';
+  if (aqi <= 200) return 'unhealthy';
+  if (aqi <= 300) return 'veryUnhealthy';
+  return 'hazardous';
+}
+
+// Sample readings for development only (DEMO_MODE). Never shown as real.
+const AQI_DEMO = {
+  'kirkland':38, 'sammamish':42, 'issaquah':55, 'maple-valley':61,
+  'wenatchee':118, 'leavenworth':143, 'ellensburg':97, 'cle-elum':152,
 };
 
-const AQI_LABELS = {
-  en:{ 'Good':'Good','Moderate':'Moderate','Unhealthy for Sensitive Groups':'Unhealthy for Sensitive Groups','Unhealthy':'Unhealthy','Very Unhealthy':'Very Unhealthy','Hazardous':'Hazardous' },
-  es:{ 'Good':'Bueno','Moderate':'Moderado','Unhealthy for Sensitive Groups':'No saludable para grupos sensibles','Unhealthy':'No saludable','Very Unhealthy':'Muy no saludable','Hazardous':'Peligroso' },
-};
-
-const AQI_FALLBACK = {
-  'kirkland':{ aqi:38, cat:'good', label:'Good', color:'#2E7D5E' },
-  'sammamish':{ aqi:42, cat:'good', label:'Good', color:'#2E7D5E' },
-  'issaquah':{ aqi:55, cat:'moderate', label:'Moderate', color:'#C07A00' },
-  'maple-valley':{ aqi:61, cat:'moderate', label:'Moderate', color:'#C07A00' },
-  'wenatchee':{ aqi:118, cat:'sensitive', label:'Unhealthy for Sensitive Groups', color:'#D4570A' },
-  'leavenworth':{ aqi:143, cat:'unhealthy', label:'Unhealthy', color:'#C0392B' },
-  'ellensburg':{ aqi:97, cat:'moderate', label:'Moderate', color:'#C07A00' },
-  'cle-elum':{ aqi:152, cat:'unhealthy', label:'Unhealthy', color:'#C0392B' },
-};
-
-// Cache is keyed by location; exported so screens can invalidate on pull-to-refresh.
+// In-memory cache of live results; exported so screens can invalidate on
+// pull-to-refresh.
 export const aqiCache = {};
 const AQI_CACHE_MS = 60 * 60 * 1000; // 1 hour
 
-const withLang = (data, lang) => ({
-  ...data,
-  label: AQI_LABELS[lang][data.labelKey] || data.labelKey,
-  msg: AQI_MSGS[lang][data.cat],
-});
+// Result: { status: 'live'|'cached'|'demo'|'unavailable', reason?, fetchedAt?, reading? }
+// reading: { aqi, cat, parameter }
+async function offlineResult(locationKey, reason) {
+  const saved = await readJSON(lastGoodKey('aqi', locationKey));
+  if (saved?.reading) return { status:'cached', reason, fetchedAt: saved.fetchedAt, reading: saved.reading };
+  if (DEMO_MODE && AQI_DEMO[locationKey] != null) {
+    const aqi = AQI_DEMO[locationKey];
+    return { status:'demo', reason, fetchedAt: Date.now(), reading: { aqi, cat: aqiCategory(aqi), parameter:'PM2.5' } };
+  }
+  return { status:'unavailable', reason };
+}
 
-const fallbackFor = (key, lang, updatedAt) => {
-  const fb = AQI_FALLBACK[key];
-  return { ...fb, labelKey: fb.label, label: AQI_LABELS[lang][fb.label] || fb.label, msg: AQI_MSGS[lang][fb.cat], updatedAt, isLive: false };
-};
-
-export async function fetchAQI(locationKey, lang = 'en') {
+export async function fetchAQI(locationKey) {
   const cached = aqiCache[locationKey];
-  if (cached && Date.now() - cached.ts < AQI_CACHE_MS) return withLang(cached.data, lang);
+  if (cached && Date.now() - cached.ts < AQI_CACHE_MS) return cached.result;
 
   const loc = findLocation(locationKey);
-  if (!loc) return fallbackFor(locationKey, lang, 'Demo');
+  if (!loc) return { status:'unavailable', reason:'error' };
+  if (!AIRNOW_API_KEY) return offlineResult(locationKey, 'noKey');
 
   try {
     const res = await fetch(`https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${loc.zip}&distance=25&API_KEY=${AIRNOW_API_KEY}`);
+    if (res.status === 401 || res.status === 403) return offlineResult(locationKey, 'badKey');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const reading = data.find((d) => d.ParameterName === 'PM2.5') || data.find((d) => d.ParameterName === 'O3') || data[0];
-    if (!reading) throw new Error('empty');
+    if (!Array.isArray(data)) throw new Error('bad payload');
+    // No monitor reporting nearby is a real answer, not an outage.
+    if (data.length === 0) return { status:'unavailable', reason:'noData' };
 
-    const meta = AQI_META[reading.Category.Name] || { cat:'moderate', color:'#C07A00' };
+    const reading = data.find((d) => d.ParameterName === 'PM2.5') || data.find((d) => d.ParameterName === 'O3') || data[0];
     const result = {
-      aqi: reading.AQI,
-      cat: meta.cat,
-      labelKey: reading.Category.Name,
-      color: meta.color,
-      updatedAt: new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
-      isLive: true,
+      status:'live',
+      fetchedAt: Date.now(),
+      reading: {
+        aqi: reading.AQI,
+        cat: AQI_CATS[reading.Category?.Name] || aqiCategory(reading.AQI),
+        parameter: reading.ParameterName,
+      },
     };
-    aqiCache[locationKey] = { data: result, ts: Date.now() };
-    return withLang(result, lang);
+    aqiCache[locationKey] = { result, ts: Date.now() };
+    await writeJSON(lastGoodKey('aqi', locationKey), { fetchedAt: result.fetchedAt, reading: result.reading });
+    return result;
   } catch (e) {
-    return fallbackFor(locationKey, lang, 'Offline');
+    return offlineResult(locationKey, 'offline');
   }
 }

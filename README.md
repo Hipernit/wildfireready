@@ -50,11 +50,11 @@ All evacuation routes in the Plan tab were derived from official county emergenc
 
 ### Live APIs
 - EPA AirNow — `https://www.airnowapi.org/aq/observation/zipCode/current/`
-- NOAA NWS — `https://api.weather.gov/points/{lat},{lon}` → forecast grid
-- NIFC WFIGS — `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/Current_WildlandFire_Locations/FeatureServer/0/query`
-- King County OEM ArcGIS — `https://services.arcgis.com/hn7l5M5rFpMhKGf0/arcgis/rest/services/EvacuationRoutes_public/FeatureServer/0/query` — live evacuation routes drawn by King County OEM during active incidents
+- NOAA NWS — `https://api.weather.gov/points/{lat},{lon}` → forecast + gridpoint data (humidity, gusts)
+- NOAA NWS alerts — `https://api.weather.gov/alerts/active?point={lat},{lon}` (Red Flag Warnings, Fire Weather Watches, Air Quality Alerts)
+- NIFC WFIGS — `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query`
 
-All four APIs have offline fallback data so the app remains functional without a connection.
+The last successful response for each source and community is saved on the device. Offline, the app shows that saved data labeled "Last updated <date/time>"; if nothing is saved it shows an "unavailable" state. It never substitutes made-up readings.
 
 ### Map
 The embedded map is rendered via **react-native-webview** with a **Leaflet.js** map (v1.9.4) loaded from the unpkg CDN. Light mode uses OpenStreetMap tiles (`tile.openstreetmap.org`); dark mode uses CARTO dark tiles (`basemaps.cartocdn.com/dark_all`). No API key or billing account is required for either tile provider.
@@ -77,14 +77,21 @@ npx expo run:ios   # requires Xcode
 npx expo run:android   # requires Android Studio
 ```
 
-### API keys
+### Environment variables
 
-Create `src/config.js` with your keys before running:
+Copy `.env.example` to `.env.local` (git-ignored) and fill it in:
 
-```js
-export const AIRNOW_API_KEY = 'your_airnow_key';
-export const NWS_UA = '(wildfireready-wa08, contact@example.com)';
+```bash
+EXPO_PUBLIC_AIRNOW_API_KEY=your_airnow_key
+EXPO_PUBLIC_NWS_UA=WildfireReady (you@example.com)
+EXPO_PUBLIC_DEMO_MODE=0
 ```
+
+Restart `npx expo start` after changing these. If the AirNow key is missing the app still runs and shows "AQI unavailable: no API key".
+
+> **`EXPO_PUBLIC_*` values ship in the client bundle.** Expo inlines them at build time, so anyone with the app can read them. Only use keys that are safe to be public (the free AirNow tier). For anything sensitive, proxy requests through a small backend instead.
+
+`EXPO_PUBLIC_DEMO_MODE=1` only works in development builds (`__DEV__`). It shows sample readings when live sources fail and nothing is saved, always with a red **DEMO** label.
 
 AirNow API keys are free at [airnowapi.org](https://docs.airnowapi.org/). The NWS API requires no key — only a User-Agent string per NOAA's usage policy. The NIFC ArcGIS endpoint is fully public with no authentication required.
 

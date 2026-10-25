@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { s } from '../styles';
 import { useTheme, useIsDark, ACCENT } from '../theme';
-import { useLang, useLangCode } from '../i18n';
+import { useLang } from '../i18n';
 import { findLocation, LOCATIONS } from '../data/locations';
 import { fetchAQI, aqiCache } from '../services/aqi';
 import { fetchLiveFires, fireCache } from '../services/fires';
+import { fetchNwsAlerts, alertCache } from '../services/weather';
 import LocPicker from '../components/LocPicker';
-import { LoadingCard, LiveStatus } from '../components/StatusLine';
+import AlertList from '../components/AlertList';
+import { LoadingCard, DataStatus, UnavailableCard } from '../components/StatusLine';
 
 // Guarded require so the screen still renders if the native module is absent
 let WebView = null;
@@ -15,49 +17,53 @@ try {
   WebView = require('react-native-webview').WebView;
 } catch (_) {}
 
-// Air-quality banner palette, theme-aware. In dark mode we tint the surface
-// with the semantic color instead of using light pastel backgrounds.
-function bannerStyle(cat, t, theme, isDark) {
-  if (cat === 'unhealthy' || cat === 'hazardous') {
-    return { bg: isDark ? 'rgba(192,57,43,0.18)' : '#FDECEA', border: 'rgba(192,57,43,0.25)', icon:'!', title:t.banners.danger.title, tc: isDark ? '#FF6B5E' : '#C0392B', msg:t.banners.danger.msg };
+// AQI category → theme color. Advisory banners are app guidance derived from
+// the AirNow reading, not official alerts.
+const AQI_TONE = { good:'success', moderate:'warning', sensitive:'accentText', unhealthy:'danger', veryUnhealthy:'danger', hazardous:'danger' };
+
+function aqiAdvisory(cat, t, theme) {
+  if (cat === 'unhealthy' || cat === 'veryUnhealthy' || cat === 'hazardous') {
+    return { bg: theme.dangerBg, tc: theme.danger, title:t.banners.danger.title, msg:t.banners.danger.msg };
   }
   if (cat === 'sensitive') {
-    return { bg: isDark ? 'rgba(192,122,0,0.18)' : '#FFF8E6', border: 'rgba(192,122,0,0.25)', icon:'!', title:t.banners.warning.title, tc: isDark ? '#E0A030' : '#C07A00', msg:t.banners.warning.msg };
+    return { bg: theme.warningBg, tc: theme.warning, title:t.banners.warning.title, msg:t.banners.warning.msg };
   }
-  return { bg: isDark ? 'rgba(46,125,94,0.18)' : '#E8F5EE', border: 'rgba(46,125,94,0.25)', icon:'✓', title:t.banners.ok.title, tc: isDark ? '#4FAE84' : '#2E7D5E', msg:t.banners.ok.msg };
+  return null;
 }
 
 export default function HomeScreen({ loc, setLoc }) {
   const theme = useTheme();
   const isDark = useIsDark();
   const t = useLang();
-  const lang = useLangCode();
 
   const [aqi, setAqi] = useState(null);
   const [fires, setFires] = useState(null);
+  const [alerts, setAlerts] = useState(null);
   const [aqiLoading, setAqiLoading] = useState(true);
   const [fireLoading, setFireLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadAll = useCallback(async (k) => {
-    setAqiLoading(true); setFireLoading(true);
-    const [aqiData, fireData] = await Promise.all([fetchAQI(k, lang), fetchLiveFires()]);
-    setAqi(aqiData); setFires(fireData);
+    setAqiLoading(true); setFireLoading(true); setAlerts(null);
+    const [aqiData, fireData, alertData] = await Promise.all([fetchAQI(k), fetchLiveFires(), fetchNwsAlerts(k)]);
+    setAqi(aqiData); setFires(fireData); setAlerts(alertData);
     setAqiLoading(false); setFireLoading(false);
-  }, [lang]);
+  }, []);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    delete aqiCache[loc]; fireCache.ts = 0;
-    const [aqiData, fireData] = await Promise.all([fetchAQI(loc, lang), fetchLiveFires()]);
-    setAqi(aqiData); setFires(fireData);
+    delete aqiCache[loc]; delete alertCache[loc]; fireCache.ts = 0;
+    const [aqiData, fireData, alertData] = await Promise.all([fetchAQI(loc), fetchLiveFires(), fetchNwsAlerts(loc)]);
+    setAqi(aqiData); setFires(fireData); setAlerts(alertData);
     setRefreshing(false);
-  }, [loc, lang]);
+  }, [loc]);
 
   useEffect(() => { loadAll(loc); }, [loc, loadAll]);
 
   const location = findLocation(loc);
-  const banner = aqi ? bannerStyle(aqi.cat, t, theme, isDark) : null;
+  const reading = aqi?.reading;
+  const advisory = reading && aqi.status !== 'demo' ? aqiAdvisory(reading.cat, t, theme) : null;
+  const aqiColor = reading ? theme[AQI_TONE[reading.cat]] : theme.textLight;
 
   const mapHtml = useMemo(() => {
     const tileUrl = isDark
@@ -123,15 +129,18 @@ export default function HomeScreen({ loc, setLoc }) {
         </View>
       )}
       <View style={[s.credit, { marginTop: 4, marginBottom: 4 }]}>
-        <Text style={[s.creditTxt, { color: theme.textLight }]}>Community locations · Live fire data: NIFC/WFIGS · Map: OpenStreetMap</Text>
+        <Text style={[s.creditTxt, { color: theme.textLight }]}>{t.mapCredit}</Text>
       </View>
 
-      {banner && (
-        <View style={[s.banner, { backgroundColor: banner.bg, borderColor: banner.border }]}>
-          <Text style={{ fontSize:16, fontWeight:'800', color: banner.tc, lineHeight:22 }}>{banner.icon}</Text>
+      {/* ── Official NWS alerts ─────────────────────────────────────────── */}
+      <AlertList result={alerts} emptyBanner />
+
+      {advisory && (
+        <View style={[s.banner, { backgroundColor: advisory.bg, borderColor: advisory.tc }]}>
+          <Text style={{ fontSize:16, fontWeight:'800', color: advisory.tc, lineHeight:22 }}>!</Text>
           <View style={{ flex:1 }}>
-            <Text style={[s.bannerTitle, { color: banner.tc }]}>{banner.title}</Text>
-            <Text style={[s.bannerBody, { color: theme.textMid }]}>{banner.msg}</Text>
+            <Text style={[s.bannerTitle, { color: advisory.tc }]}>{advisory.title}</Text>
+            <Text style={[s.bannerBody, { color: theme.textMid }]}>{advisory.msg}</Text>
           </View>
         </View>
       )}
@@ -139,19 +148,29 @@ export default function HomeScreen({ loc, setLoc }) {
       <Text style={[s.secLabel, { color: theme.textLight }]}>{t.airQuality}</Text>
       {aqiLoading ? (
         <LoadingCard label={t.fetchingAqi} height={100} />
-      ) : aqi ? (
+      ) : reading ? (
         <View style={[s.aqiCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={[s.aqiDial, { borderColor: aqi.color }]}>
-            <Text style={[s.aqiNum, { color: aqi.color }]}>{aqi.aqi}</Text>
-            <Text style={[s.aqiUnit, { color: aqi.color }]}>AQI</Text>
+          <View style={[s.aqiDial, { borderColor: aqiColor }]}>
+            <Text style={[s.aqiNum, { color: aqiColor }]}>{reading.aqi}</Text>
+            <Text style={[s.aqiUnit, { color: aqiColor }]}>AQI</Text>
           </View>
           <View style={{ flex:1 }}>
-            <Text style={[s.aqiStatus, { color: theme.text }]}>{aqi.label}</Text>
-            <Text style={[s.aqiMsg, { color: theme.textMid }]}>{aqi.msg}</Text>
-            <LiveStatus isLive={aqi.isLive} updatedAt={aqi.updatedAt} liveLabel={t.live} extra={t.prelimData} offlineLabel={t.offlineData} />
+            <Text style={[s.aqiStatus, { color: theme.text }]}>{t.aqiLabels[reading.cat]}</Text>
+            <Text style={[s.aqiMsg, { color: theme.textMid }]}>{t.aqiMsgs[reading.cat]}</Text>
+            <DataStatus status={aqi.status} fetchedAt={aqi.fetchedAt} extra={t.prelimData} />
+            {aqi.reason === 'noKey' && <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop:4 }]}>{t.aqiNoKey}</Text>}
+            {aqi.reason === 'badKey' && <Text style={[s.aqiUpdate, { color: theme.textMid, marginTop:4 }]}>{t.aqiBadKey}</Text>}
           </View>
         </View>
-      ) : null}
+      ) : aqi?.reason === 'noKey' ? (
+        <UnavailableCard title={t.aqiNoKey} msg={t.aqiNoKeyMsg} />
+      ) : aqi?.reason === 'badKey' ? (
+        <UnavailableCard title={t.aqiBadKey} msg={t.aqiBadKeyMsg} />
+      ) : aqi?.reason === 'noData' ? (
+        <UnavailableCard title={t.aqiUnavailable} msg={t.aqiNoData} />
+      ) : (
+        <UnavailableCard title={t.aqiUnavailable} msg={t.aqiUnavailableMsg} />
+      )}
 
       <Text style={[s.secLabel, { color: theme.textLight }]}>{t.activeFires}</Text>
       {fireLoading ? (
@@ -159,9 +178,9 @@ export default function HomeScreen({ loc, setLoc }) {
       ) : fires?.fires?.length === 0 ? (
         <View style={[s.aqiCard, { backgroundColor: theme.surface, borderColor: theme.border, padding:16 }]}>
           <Text style={{ fontSize:14, color: theme.textMid, lineHeight:20 }}>
-            {fires.isLive ? t.noFires : t.firesFetchError}
+            {fires.status === 'live' ? t.noFires : t.firesFetchError}
           </Text>
-          <LiveStatus isLive={fires.isLive} updatedAt={fires.updatedAt} liveLabel={t.live} offlineLabel={t.offlineData} />
+          <DataStatus status={fires.status} fetchedAt={fires.fetchedAt} />
         </View>
       ) : (
         fires?.fires?.map((f) => {

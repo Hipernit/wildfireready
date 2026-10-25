@@ -1,6 +1,6 @@
 // ── LOCATIONS ─────────────────────────────────────────────────────────────
 export const LOCATIONS = [
-  { key:'kirkland',     label:'Kirkland (near WA-08 boundary)', county:'King', zip:'98033', lat:47.6769, lon:-122.2060, note:'Kirkland (98033) sits near the WA-08/WA-01 boundary and may fall in WA-01. Evacuation routes shown are directionally correct regardless of district.' },
+  { key:'kirkland',     label:'Kirkland (near WA-08 boundary)', county:'King', zip:'98033', lat:47.6769, lon:-122.2060, note:{ en:'Kirkland (98033) sits near the WA-08/WA-01 boundary and may fall in WA-01. Evacuation routes shown apply regardless of district.', es:'Kirkland (98033) está cerca del límite entre WA-08 y WA-01 y puede pertenecer a WA-01. Las rutas de evacuación aplican sin importar el distrito.' } },
   { key:'sammamish',    label:'Sammamish',    county:'King',     zip:'98075', lat:47.6163, lon:-122.0356 },
   { key:'issaquah',     label:'Issaquah',     county:'King',     zip:'98027', lat:47.5301, lon:-122.0326 },
   { key:'maple-valley', label:'Maple Valley', county:'King',     zip:'98038', lat:47.3748, lon:-122.0465 },
@@ -10,8 +10,8 @@ export const LOCATIONS = [
   { key:'cle-elum',     label:'Cle Elum',     county:'Kittitas', zip:'98922', lat:47.1954, lon:-120.9365 },
 ];
 
-// East-of-Cascades communities — used to pick the higher-fire-risk demo
-// forecast when the live NWS request fails.
+// East-of-Cascades communities — used to pick the drier sample forecast in
+// DEMO_MODE.
 export const EAST = ['wenatchee', 'leavenworth', 'ellensburg', 'cle-elum'];
 
 // WA state bounding box (reserved for filtering fires to the region).

@@ -1,19 +1,17 @@
 // ── LIVE FIRE DATA ────────────────────────────────────────────────────────
-// NIFC WFIGS Current Wildland Fire Incident Locations — public, no key needed.
-// Filtered to the Washington state bounding box; returns real active fires.
+// NIFC WFIGS Current Incident Locations — public, no key needed. (The older
+// Current_WildlandFire_Locations service now requires a token.)
 const NIFC_URL =
   'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/' +
-  'Current_WildlandFire_Locations/FeatureServer/0/query?' +
+  'WFIGS_Incident_Locations_Current/FeatureServer/0/query?' +
   'where=POOState%3D%27US-WA%27&' +
-  'outFields=IncidentName,GISAcres,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory&' +
-  'orderByFields=GISAcres+DESC&resultRecordCount=5&' +
+  'outFields=IncidentName,IncidentSize,PercentContained,FireCause,POOCounty,ModifiedOnDateTime_dt,IncidentTypeCategory,UniqueFireIdentifier&' +
+  'orderByFields=IncidentSize+DESC&resultRecordCount=5&' +
   'f=json&returnGeometry=true&outSR=4326';
 
 // Shared cache; exported so screens can force-refresh by resetting `ts`.
 export const fireCache = { data: null, ts: 0 };
 const FIRE_CACHE_MS = 4 * 60 * 60 * 1000; // 4 hours — NIFC updates daily
-
-const nowTime = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 
 export async function fetchLiveFires() {
   if (fireCache.data && Date.now() - fireCache.ts < FIRE_CACHE_MS) return fireCache.data;
@@ -23,13 +21,16 @@ export async function fetchLiveFires() {
     if (!res.ok) throw new Error(`NIFC HTTP ${res.status}`);
     const json = await res.json();
 
-    if (!json.features || json.features.length === 0) {
-      return { fires: [], isLive: true, updatedAt: nowTime() };
+    // ArcGIS reports errors as HTTP 200 with an `error` body — never treat
+    // that as "no fires".
+    if (json.error || !Array.isArray(json.features)) throw new Error(json.error?.message || 'bad payload');
+    if (json.features.length === 0) {
+      return { fires: [], status:'live', fetchedAt: Date.now() };
     }
 
     const fires = json.features.map((f) => {
       const a = f.attributes;
-      const acres = a.GISAcres ? Math.round(a.GISAcres).toLocaleString() : 'Unknown';
+      const acres = a.IncidentSize ? Math.round(a.IncidentSize).toLocaleString() : 'Unknown';
       const pct = a.PercentContained != null ? `${Math.round(a.PercentContained)}%` : 'Unknown';
       const county = a.POOCounty ? a.POOCounty.replace(' County', '').replace(' county', '') : 'Washington';
       const contained = a.PercentContained;
@@ -51,12 +52,12 @@ export async function fetchLiveFires() {
       };
     });
 
-    const result = { fires, isLive: true, updatedAt: nowTime() };
+    const result = { fires, status:'live', fetchedAt: Date.now() };
     fireCache.data = result;
     fireCache.ts = Date.now();
     return result;
   } catch (e) {
     console.warn('NIFC fetch error:', e.message);
-    return { fires: [], isLive: false, updatedAt: 'Offline', error: e.message };
+    return { fires: [], status:'unavailable', error: e.message };
   }
 }
