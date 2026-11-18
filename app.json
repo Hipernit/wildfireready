@@ -17,6 +17,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "web": {
+      "output": "single",
+      "bundler": "metro"
+    },
     "plugins": [
       [
         "expo-location",
